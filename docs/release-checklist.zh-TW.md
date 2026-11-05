@@ -3,7 +3,7 @@
 **建立日期：2026-11-05**，以實際 GitHub commit、EAS build 與 Google Play Console 進度為準。
 
 ## 目前已完成的離線準備
-- 原始碼目標：GitHub organization `starry-phd` 下私人 Repo `clock`，不應建立於 `yukidu` 個人 Repo。
+- 原始碼目標：GitHub organization `starry-phd` 下公開 Repo `clock`，不應建立於 `yukidu` 個人 Repo。
 - SDK 58 / RN 0.88 / TS strict、pnpm workspaces，現有核心與 Worker 離線測試。
 - 播放音效不需麥克風：expo-audio 設定停用錄音、背景服務及 Android RECORD_AUDIO 權限；待原生 Manifest 驗證。
 - Expo 應用識別：`slug=clock`、Android `phd.starry.clock`、iOS `phd.starry.clock`。正式首次上架後 Package ID 不可任意更改。
@@ -13,7 +13,7 @@
 - 保持 Starry ID 只讀，不更改 `starry-phd/id`、D1、會員 Secrets、Auth；Ads OFF、Billing OFF。
 
 ## 阻擋正式上架的 Gate
-1. [ ] 組織 `starry-phd` 已建立 Private `clock` Repo；main SHA/權限可驗證。
+1. [ ] 組織 `starry-phd` 已建立 Public `clock` Repo；main SHA/權限可驗證。（2026-11-05 已完成首次推送；後續仍需核對 CI。）
 2. [ ] Mac/CI 實際完成 `pnpm install`，產生並提交 `pnpm-lock.yaml`；`expo-doctor` / TS / lint / unit tests 全綠。
 3. [ ] 使用自己的 Expo 帳戶 `eas login`、`eas project:init`，記錄真正的 projectId 與 Owner；不可憑空填入。
 4. [ ] Expo EAS preview Android APK 建置成功、安裝在 Android 真機、響鈴/全螢幕/橫豎/重啟/離線測試通過。
@@ -25,7 +25,7 @@
 10. [ ] 在平台受審人員確認及費用 Gate 後，透過 EAS Submit 將 AAB 上傳 **internal/draft**，不自動推 production。
 11. [ ] Google Play 正式審核/上線完成，取得商店頁面真實網址和發佈紀錄。
 
-## Mac 上建立私人 repo（需 GitHub CLI 已登入）
+## Mac 上建立／更新公開 repo（需 GitHub CLI 已登入）
 
 將 ZIP 解壓縮進入 `clock` 專案根目錄後，在 Terminal 執行：
 
@@ -34,12 +34,13 @@ cd /解壓縮的位置/clock
 bash tools/create-github.sh
 ```
 
-此腳本會檢查 GitHub CLI `gh` 登入與組織，建立 `starry-phd/clock` 私有 Repo；若已在 GitHub 網站建立空白 Private Repo，則安全驗證後推送（不覆寫遠端歷史）；執行前請確認沒有額外個資/憑證。
+此腳本會檢查 GitHub CLI `gh` 登入與組織，建立 `starry-phd/clock` 公開 Repo；若已建立公開 Repo，則只驗證後推送（不覆寫遠端歷史）；上傳前必須確認沒有 API 金鑰、憑證、個資或其他機密資料。
 
 ## Expo 建置命令（Repo 已建立且 GitHub CI／依賴檢查通過後）
 
 ```bash
 # 在 clock 專案根目錄
+# 首次推送已完成；先取得最新版本：git pull --ff-only origin main
 corepack enable
 pnpm install
 pnpm test:clock
