@@ -65,9 +65,9 @@ npx eas-cli build --platform ios --profile preview
 
 ## GitHub 與發布狀態
 
-`starry-phd/id` 與 `starry-phd/echo` 已查核，但現有 GitHub 工具**沒有建立新 Repo 的動作**。因此未建立 `starry-phd/clock`、沒有 GitHub PR/SHA/CI 結果；也沒有改動其他現有 GitHub Repo。已把 `clock` 完整原始檔整理供將來建立私有 Repo 使用。
+`starry-phd/clock` 已於 2026-11-05 建立為 **Public（公開）** 儲存庫，並由開發者的 Mac 首次推送 `main`。GitHub 檔案內容已確認可讀取；CI 執行結果尚待驗證。中央會員 `starry-phd/id` 與其他 Repo 未因建庫作業而修改。
 
-開案方向：新消費型 App 應採與中央會員獨立的 Starry 私有 Monorepo（可納入 `apps/clock`），只在既有授權能力內部署；不提早安裝 Google AdMob Mediation SDK（Ads OFF）；本 App 不設 Billing、Battery、D1、R2 或新付費資源。
+開案方向：新消費型 App 應採與中央會員獨立的 Starry 公開 Monorepo（可納入 `apps/clock`），只在既有授權能力內部署；不提早安裝 Google AdMob Mediation SDK（Ads OFF）；本 App 不設 Billing、Battery、D1、R2 或新付費資源。
 
 詳見 `docs/acceptance.md`。
 
@@ -85,6 +85,10 @@ python test/web-e2e.py  # 需本機已安裝 Playwright 與 Chromium
 ## 2026-11-05｜GitHub／Expo 上架準備補充（未發布）
 
 此版本新增商店圖示、EAS 正式／測試建置設定、僅手動觸發的 GitHub EAS 工作流程、Google Play 文字與隱私草稿、Mac `gh` 建庫腳本與發版清單。
-**GitHub `starry-phd/clock` 尚未建立，Expo projectId 未初始化，Android APK/AAB 未建置，Play Console `Clock` App 尚未建立或提交。**
+**GitHub `starry-phd/clock` 已建立並首次推送；Expo projectId 未初始化，Android APK/AAB 未建置，Play Console `Clock` App 尚未建立或提交。**
 
 依 `docs/release-checklist.zh-TW.md` 操作。不得把本機測試／套件配置寫成 Google Play 上架完成。
+
+## 2026-11-05｜GitHub Public 政策
+
+Clock 儲存庫為 `https://github.com/starry-phd/clock`，所有新 GitHub 專案依使用者要求預設 Public；只有經使用者另行指定時才改為 Private。不得將密碼、API Token、簽章憑證、Service Account JSON 或個人資料提交至公開 Repo。根目錄 `package.json` 的 `private: true` 只是防止發佈至 npm registry，與 GitHub Repo 的 Public/Private 權限**無關**。
