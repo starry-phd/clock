@@ -1,0 +1,43 @@
+name: clock-android-eas-manual
+# Intentionally NOT triggered by push/PR: EAS builds can consume quota.
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'preview = APK, production = Play AAB'
+        type: choice
+        required: true
+        default: preview
+        options: [preview, production]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10.18.0'
+      - name: Install app dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check release inputs
+        run: python3 tools/preflight.py --checks eas
+      - name: Verify type safety
+        run: pnpm --dir apps/clock exec tsc --noEmit
+      - name: Ensure EXPO_TOKEN is configured
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo 'EXPO_TOKEN secret must be configured before the manual EAS build' >&2
+            exit 1
+          fi
+      - name: Queue EAS build (no auto-submit)
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        working-directory: apps/clock
+        run: npx --yes eas-cli@latest build --platform android --profile '${{ inputs.profile }}' --non-interactive --no-wait

@@ -1,0 +1,11 @@
+.git/
+.github/
+docs/
+tools/
+test/
+web-preview/
+*.zip
+*.bundle
+.env
+.env.*
+!.env.example

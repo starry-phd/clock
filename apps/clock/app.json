@@ -1,0 +1,53 @@
+{
+  "expo": {
+    "name": "Clock",
+    "slug": "clock",
+    "scheme": "clockstarry",
+    "version": "1.1.1",
+    "orientation": "default",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "phd.starry.clock",
+      "supportsTablet": true,
+      "icon": "./assets/icon.png",
+      "buildNumber": "1"
+    },
+    "android": {
+      "package": "phd.starry.clock",
+      "edgeToEdgeEnabled": true,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0B1220"
+      },
+      "versionCode": 1,
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundRecording": false,
+          "enableBackgroundPlayback": false
+        }
+      ]
+    ],
+    "extra": {
+      "appId": "clock",
+      "brandId": "starry",
+      "apiBase": "https://id.starry.phd",
+      "adsEnabled": false
+    },
+    "icon": "./assets/icon.png",
+    "backgroundColor": "#0B1220"
+  }
+}
