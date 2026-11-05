@@ -23,6 +23,9 @@
       "versionCode": 1,
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO"
+      ],
+      "permissions": [
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "web": {
@@ -45,9 +48,18 @@
       "appId": "clock",
       "brandId": "starry",
       "apiBase": "https://id.starry.phd",
-      "adsEnabled": false
+      "adsEnabled": false,
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "bd610a4d-aa22-48b1-9bdc-fae3c8cab64f"
+      }
     },
     "icon": "./assets/icon.png",
-    "backgroundColor": "#0B1220"
+    "backgroundColor": "#0B1220",
+    "owner": "starryphd"
   }
 }
