@@ -2,14 +2,20 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 // Tests compile the pure, dependency-free core to temporary JS before importing.
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 const root = resolve(import.meta.dirname, '..');
 const out = mkdtempSync(join(tmpdir(), 'clock-core-'));
-const ts = spawnSync('tsc', ['--target','ES2022','--module','ES2022','--moduleResolution','node','--strict','--skipLibCheck', '--outDir',out, join(root,'src/index.ts')], {encoding:'utf8'});
-if (ts.status !== 0) throw new Error(ts.stderr + ts.stdout);
+// Resolve the project's installed TypeScript. GitHub Actions does not put tsc on PATH.
+const localTsc = resolve(root, '../../apps/clock/node_modules/typescript/bin/tsc');
+const args = ['--target','ES2022','--module','ES2022','--moduleResolution','node','--strict','--skipLibCheck', '--outDir',out, join(root,'src/index.ts')];
+const ts = existsSync(localTsc)
+  ? spawnSync(process.execPath, [localTsc, ...args], { encoding: 'utf8' })
+  : spawnSync('tsc', args, { encoding: 'utf8' }); // fallback for local development
+if (ts.error) throw new Error('TypeScript could not start: ' + ts.error.message + '. Run pnpm install first.');
+if (ts.status !== 0) throw new Error('TypeScript compiler failed: ' + String(ts.stderr ?? '') + String(ts.stdout ?? ''));
 const core = await import(pathToFileURL(join(out,'index.js')).href);
 const { formatCountdown, newTimer, startTimer, pauseTimer, tickTimer, sanitizePresets } = core;
 describe('clock timer engine', () => {
