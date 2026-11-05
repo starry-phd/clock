@@ -1,0 +1,47 @@
+name: clock-ios-eas-manual
+# Manual only: Expo iOS cloud builds may consume usage quota.
+# Production signing credentials must be configured interactively with Apple Developer first.
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'ios-simulator = simulator build; production = App Store/TestFlight IPA'
+        type: choice
+        required: true
+        default: ios-simulator
+        options:
+          - ios-simulator
+          - production
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10.18.0'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check Expo EAS linkage and build inputs
+        run: python3 tools/preflight.py --checks eas
+      - name: Check TypeScript
+        run: pnpm --dir apps/clock exec tsc --noEmit
+      - name: Require Expo token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo 'Configure EXPO_TOKEN in GitHub Actions secrets first.' >&2
+            exit 1
+          fi
+      - name: Queue iOS build (does not submit to App Store)
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          BUILD_PROFILE: ${{ inputs.profile }}
+        working-directory: apps/clock
+        run: npx --yes eas-cli@latest build --platform ios --profile "$BUILD_PROFILE" --non-interactive --no-wait
