@@ -1,0 +1,5 @@
+-- Clock-owned storage. It does not modify Starry ID.
+CREATE TABLE IF NOT EXISTS clock_pricing (feature TEXT PRIMARY KEY, units INTEGER NOT NULL, enabled INTEGER NOT NULL DEFAULT 0, version INTEGER NOT NULL DEFAULT 1, changed_by TEXT, changed_at TEXT DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS clock_pricing_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, feature TEXT NOT NULL, previous_units INTEGER, new_units INTEGER, previous_enabled INTEGER, new_enabled INTEGER, changed_by TEXT NOT NULL, changed_at TEXT DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS clock_presets (user_id TEXT NOT NULL, preset_id TEXT NOT NULL, name TEXT NOT NULL, duration_seconds INTEGER NOT NULL, state TEXT NOT NULL, request_id TEXT, paid_units INTEGER NOT NULL DEFAULT 0, created_at TEXT DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(user_id,preset_id));
+CREATE TABLE IF NOT EXISTS clock_requests (user_id TEXT NOT NULL, request_id TEXT NOT NULL, preset_id TEXT NOT NULL, intent_hash TEXT NOT NULL, state TEXT NOT NULL, reservation_id TEXT, charged_units INTEGER NOT NULL DEFAULT 0, created_at TEXT DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(user_id,request_id));
