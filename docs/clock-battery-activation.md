@@ -16,6 +16,8 @@
 ## 必須完成才可以啟用真正扣 X 顆
 
 1. 用現有 Owner 身分登入 [Starry ID Admin Lite Battery](https://id.starry.phd/admin/battery)，新增或確認獨立非 AI 任務 `clock.preset_create`，屬 App `clock`，**每單位消耗 1 顆**，單次上限至少 X（若 X 可設定到 30，中央單次上限設為 30）。不能拿 `clock.ai` 冒充非 AI 功能。
+
+   - Admin Lite 的「App」選 **Clock（clock）**；「任務代碼」欄只填 **`preset_create`**（系統會自動組成 `clock.preset_create`）。「顯示名稱」填 **新增第 4 組以上的計時器**；「每單位消耗」填 **1**；「單次最多幾單位」填 **30**；「逾時秒數」留空；勾選「啟用」。不要輸入 `clock.preset.create`（多一個句點，中央不接受）。
 2. 在 Starry ID Admin Lite 的 App 管理重新產生／取得 Clock 專用 Battery Service Key；只在 Cloudflare Workers 的 **clock-api** Secret 設 `STARRY_BATTERY_KEY`，並為 **clock-api-staging** 設定 staging 可用的對應金鑰；金鑰不要貼在聊天室、GitHub、App 或日志。現有 `clock` Web Worker 雖有同名 Secret，但 Cloudflare 不支援讀取原值並自動複製；`clock-api` 尚未設定。
 3. 在 Clock API Worker Secrets 設 `CLOCK_OWNER_USER_IDS`，值為你在 Starry ID 的精確 `user_id`（若多位 Owner，以逗號分隔）。**這不是密碼**，但是授權白名單，務必只在 Worker Secret 設定。staging 與正式環境都需設定。不得用 Email 或姓名作 Owner 認證。
 4. 登入 Clock → 設定 → Starry ID → 超級管理員，在 `clock.preset_create` 輸入 X（0～30）並選擇啟用，按「儲存」；後端會留稽核紀錄。
@@ -35,3 +37,11 @@
 ## 一致性限制
 
 目前 Expo 原生與 Web 使用各自的本機預設資料，已付款新增的雲端預設則會按 Starry `user_id` 在登入時同步。若要將前三組免費預設也改成**跨裝置完全同步**，需另外做可信資料遷移與總數規則，避免舊裝置以本機資料繞過每位會員的免費限制。前 3 組既有本機預設並非中央資料庫唯一事實來源，請勿將此版本誤報為完整跨裝置同步。
+
+## 2026-11-07 修復紀錄
+
+- Clock 正式 Web 與 Expo 程式已改用同一個安全 API：`https://clock.starry.phd/api/clock`；Web 透過 Cloudflare Worker service binding 轉送 `clock-api`，不再直接跨網域呼叫 workers.dev，修復 `Failed to fetch`。
+- Cloudflare `clock-api` 和 staging 的 `CLOCK_OWNER_USER_IDS` 已從 Starry ID **唯讀** owner 角色結果安全設定，不顯示 Owner UUID；Starry ID 資料未被修改。
+- 中央 `starry-battery` **唯讀**查核：`clock` 已有服務金鑰登記、現有任務僅 `clock.ai`；**尚無** `clock.preset_create`。必須使用 Admin Lite Owner 身分建立，不可直接修改中央 D1。
+- `clock-api` Secret **尚無** `STARRY_BATTERY_KEY`；既有 `clock` 網站 Worker 有此 Secret，但 Cloudflare 不允許讀取原值。請到 Starry ID Admin Lite 的 Clock App 頁重新產生專用金鑰，直接設定到 `clock-api` 與 staging Workers Secrets（不得貼到聊天、Git）。
+- 所有後端扣量開關 `BATTERY_CHARGES_ENABLED=false`，會員原有計時功能正常。中央任務、Secret 完整設定後，先在 staging 驗證並確認價目表 `X`，才開放扣點。
