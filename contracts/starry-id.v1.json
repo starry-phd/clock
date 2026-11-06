@@ -1,0 +1,4138 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Starry ID API",
+    "version": "1.0.0",
+    "description": "Starry 平台 API：會員與登入、App 設定、購買權益與推播。串接方式見 docs/integration-guide.md。"
+  },
+  "servers": [
+    {
+      "url": "https://id.starry.phd",
+      "description": "production"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Starry access token (ES256, 15 minutes) from /v1/auth/{provider} or /v1/auth/refresh"
+      },
+      "appKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-starry-app-key",
+        "description": "App backend service key (BATTERY_SERVICE_KEYS); never ship it inside an App"
+      }
+    },
+    "schemas": {
+      "Health": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "db": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "service",
+          "environment",
+          "db"
+        ]
+      },
+      "JWKS": {
+        "type": "object",
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          }
+        },
+        "required": [
+          "keys"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "example": "UNAUTHORIZED"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "AppConfig": {
+        "type": "object",
+        "properties": {
+          "app_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "example": "active",
+            "description": "active, paused or killed"
+          },
+          "min_version": {
+            "type": "string",
+            "example": "1.0.0"
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "app_id",
+          "status",
+          "min_version",
+          "config"
+        ]
+      },
+      "SignInResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/TokenPair"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "user": {
+                "type": "object",
+                "properties": {
+                  "user_id": {
+                    "type": "string",
+                    "description": "Starry member ID (UUIDv7); use as RevenueCat App User ID"
+                  },
+                  "status": {
+                    "type": "string",
+                    "example": "active"
+                  },
+                  "is_new": {
+                    "type": "boolean"
+                  },
+                  "deletion_purge_at": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "user_id",
+                  "status",
+                  "is_new",
+                  "deletion_purge_at"
+                ]
+              },
+              "consent_required": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "user",
+              "consent_required"
+            ]
+          }
+        ]
+      },
+      "TokenPair": {
+        "type": "object",
+        "properties": {
+          "token_type": {
+            "type": "string",
+            "example": "Bearer"
+          },
+          "access_token": {
+            "type": "string"
+          },
+          "expires_in": {
+            "type": "integer",
+            "example": 900
+          },
+          "refresh_token": {
+            "type": "string"
+          },
+          "refresh_expires_in": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "token_type",
+          "access_token",
+          "expires_in",
+          "refresh_token",
+          "refresh_expires_in"
+        ]
+      },
+      "BatteryActivity": {
+        "type": "object",
+        "properties": {
+          "balance": {
+            "$ref": "#/components/schemas/BatteryBalance"
+          },
+          "activity": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "entry_id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "usage",
+                    "adjustment"
+                  ]
+                },
+                "amount": {
+                  "type": "integer",
+                  "description": "usage: Battery spent; adjustment: change made by Starry staff"
+                },
+                "app_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "task_label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "created_at": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "entry_id",
+                "kind",
+                "amount",
+                "app_id",
+                "task_label",
+                "created_at"
+              ]
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "balance",
+          "activity",
+          "next_cursor"
+        ]
+      },
+      "BatteryBalance": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "type": "string",
+            "example": "2026-11",
+            "description": "Calendar month in Taiwan time"
+          },
+          "allowance": {
+            "type": "integer"
+          },
+          "used": {
+            "type": "integer"
+          },
+          "reserved": {
+            "type": "integer"
+          },
+          "remaining": {
+            "type": "integer"
+          },
+          "resets_at": {
+            "type": "integer",
+            "description": "Next reset: the 1st of next month, 00:00 Taiwan time (epoch ms)"
+          }
+        },
+        "required": [
+          "period",
+          "allowance",
+          "used",
+          "reserved",
+          "remaining",
+          "resets_at"
+        ]
+      },
+      "Me": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "integer"
+          },
+          "deletion_requested_at": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "deletion_purge_at": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "profile": {
+            "$ref": "#/components/schemas/Profile"
+          },
+          "public_profile": {
+            "$ref": "#/components/schemas/PublicProfile"
+          },
+          "identities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string"
+                },
+                "email": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "email_is_private_relay": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "provider",
+                "email",
+                "email_is_private_relay"
+              ]
+            }
+          },
+          "consent": {
+            "type": "object",
+            "properties": {
+              "terms_version": {
+                "type": "string"
+              },
+              "privacy_version": {
+                "type": "string"
+              },
+              "required": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "terms_version",
+              "privacy_version",
+              "required"
+            ]
+          }
+        },
+        "required": [
+          "user_id",
+          "status",
+          "created_at",
+          "deletion_requested_at",
+          "deletion_purge_at",
+          "profile",
+          "public_profile",
+          "identities",
+          "consent"
+        ]
+      },
+      "Profile": {
+        "type": "object",
+        "properties": {
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name shown to others (姓名), 1-50 characters"
+          },
+          "avatar_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Signed path, valid for one hour"
+          },
+          "birthday": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "1990-02-28"
+          },
+          "locale": {
+            "type": "string",
+            "example": "zh-TW"
+          },
+          "contact_email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Main contact email typed by the member; system email uses it once verified"
+          },
+          "contact_email_verified": {
+            "type": "boolean"
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "E.164",
+            "example": "+886912345678"
+          },
+          "country": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 3166-1 alpha-2",
+            "example": "TW"
+          },
+          "region": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "State, province or county",
+            "example": "臺北市"
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "大安區"
+          },
+          "motto": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "derived": {
+            "$ref": "#/components/schemas/ProfileDerived"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/ProfileVisibility"
+          },
+          "field_updated_at": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "updated_at": {
+                  "type": "integer"
+                },
+                "source": {
+                  "type": "string",
+                  "enum": [
+                    "member",
+                    "staff"
+                  ]
+                }
+              },
+              "required": [
+                "updated_at",
+                "source"
+              ]
+            },
+            "description": "When each field was last changed and by whom (02.10)"
+          },
+          "version": {
+            "type": "integer",
+            "description": "Send as If-Match when changing the profile"
+          },
+          "updated_at": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "display_name",
+          "avatar_url",
+          "birthday",
+          "locale",
+          "contact_email",
+          "contact_email_verified",
+          "phone",
+          "country",
+          "region",
+          "city",
+          "motto",
+          "derived",
+          "visibility",
+          "field_updated_at",
+          "version",
+          "updated_at"
+        ]
+      },
+      "ProfileDerived": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "zodiac": {
+            "type": "string",
+            "example": "pisces"
+          },
+          "zodiac_name": {
+            "type": "string",
+            "example": "雙魚座"
+          },
+          "talent_numbers": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "Digit sums of the birth date before the final digit, e.g. [31]",
+            "example": [
+              31
+            ]
+          },
+          "life_path_number": {
+            "type": "integer",
+            "example": 4
+          },
+          "grid": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "number": {
+                  "type": "integer"
+                },
+                "count": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "number",
+                "count"
+              ]
+            },
+            "description": "1-9 counts for the 3×3 grid (rows 3-6-9 / 2-5-8 / 1-4-7)"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Complete grid lines",
+            "example": [
+              "1-2-3"
+            ]
+          }
+        },
+        "required": [
+          "zodiac",
+          "zodiac_name",
+          "talent_numbers",
+          "life_path_number",
+          "grid",
+          "lines"
+        ],
+        "description": "From the birthday; null without one"
+      },
+      "ProfileVisibility": {
+        "type": "object",
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ]
+          },
+          "avatar": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ]
+          },
+          "birthday": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ],
+            "description": "Public shows month and day only; always private for members under 18"
+          },
+          "derived": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ],
+            "description": "Zodiac and life path number; always private for members under 18"
+          },
+          "location": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ],
+            "description": "Country, state/province and city"
+          },
+          "phone": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ]
+          },
+          "motto": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ]
+          },
+          "contact_email": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ],
+            "description": "Shown only once verified"
+          }
+        },
+        "required": [
+          "display_name",
+          "avatar",
+          "birthday",
+          "derived",
+          "location",
+          "phone",
+          "motto",
+          "contact_email"
+        ]
+      },
+      "PublicProfile": {
+        "type": "object",
+        "properties": {
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "avatar_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "birthday_month_day": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "02-28"
+          },
+          "zodiac_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "life_path_number": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "location": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "country": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "region": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "city": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "country",
+              "region",
+              "city"
+            ]
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "motto": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contact_email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "display_name",
+          "avatar_url",
+          "birthday_month_day",
+          "zodiac_name",
+          "life_path_number",
+          "location",
+          "phone",
+          "motto",
+          "contact_email"
+        ],
+        "description": "What other members may see under the current visibility settings"
+      },
+      "ProfileResponse": {
+        "type": "object",
+        "properties": {
+          "profile": {
+            "$ref": "#/components/schemas/Profile"
+          }
+        },
+        "required": [
+          "profile"
+        ]
+      },
+      "VersionConflict": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Error"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "profile": {
+                "$ref": "#/components/schemas/Profile"
+              }
+            },
+            "required": [
+              "profile"
+            ]
+          }
+        ]
+      },
+      "LinkConflict": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Error"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "mergeable": {
+                "type": "boolean",
+                "description": "IDENTITY_IN_USE only: whether resending with merge_other_account: true would merge"
+              },
+              "merge_blocked": {
+                "type": "string",
+                "enum": [
+                  "already_has_provider",
+                  "staff",
+                  "suspended",
+                  "other_sign_in",
+                  "purchases"
+                ]
+              },
+              "other_account_created_at": {
+                "type": "integer"
+              }
+            }
+          }
+        ]
+      },
+      "Entitlements": {
+        "type": "object",
+        "properties": {
+          "app_id": {
+            "type": "string"
+          },
+          "entitlements": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "entitlement": {
+                  "type": "string"
+                },
+                "expires_at": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "product_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "store": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "environment": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "entitlement",
+                "expires_at",
+                "product_id",
+                "store",
+                "environment"
+              ]
+            }
+          }
+        },
+        "required": [
+          "app_id",
+          "entitlements"
+        ]
+      },
+      "NotificationPreferences": {
+        "type": "object",
+        "properties": {
+          "app_id": {
+            "type": "string"
+          },
+          "categories": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          }
+        },
+        "required": [
+          "app_id",
+          "categories"
+        ]
+      },
+      "BatteryReservation": {
+        "type": "object",
+        "properties": {
+          "reservation_id": {
+            "type": "string"
+          },
+          "task_type": {
+            "type": "string"
+          },
+          "units": {
+            "type": "integer"
+          },
+          "amount": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "reserved",
+              "committed",
+              "released",
+              "expired"
+            ]
+          },
+          "charged": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "integer"
+          },
+          "expires_at": {
+            "type": "integer"
+          },
+          "replayed": {
+            "type": "boolean",
+            "description": "true when an earlier request with the same idempotency key created it"
+          }
+        },
+        "required": [
+          "reservation_id",
+          "task_type",
+          "units",
+          "amount",
+          "status",
+          "charged",
+          "created_at",
+          "expires_at",
+          "replayed"
+        ]
+      },
+      "BatteryConflict": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Error"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "balance": {
+                "$ref": "#/components/schemas/BatteryBalance"
+              },
+              "reservation": {
+                "$ref": "#/components/schemas/BatteryReservation"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/v1/health": {
+      "get": {
+        "tags": [
+          "Platform"
+        ],
+        "summary": "Liveness plus a D1 round trip",
+        "responses": {
+          "200": {
+            "description": "Healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unreachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/.well-known/jwks.json": {
+      "get": {
+        "tags": [
+          "Platform"
+        ],
+        "summary": "Public keys for verifying Starry access tokens (ES256)",
+        "responses": {
+          "200": {
+            "description": "JSON Web Key Set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JWKS"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/apps/{appId}/config": {
+      "get": {
+        "tags": [
+          "Apps"
+        ],
+        "summary": "Status, minimum version and whitelisted settings an App reads at launch",
+        "description": "Stop or show maintenance when status is not active; require an update below min_version (S-PLT-02).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "echo"
+            },
+            "required": true,
+            "name": "appId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppConfig"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/avatars/{userId}/{file}": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Avatar image through a signed URL (use profile.avatar_url as given)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "userId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "file",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "exp",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "sig",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Image bytes (image/webp, image/jpeg or image/png)"
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/billing/revenuecat/{appId}": {
+      "post": {
+        "tags": [
+          "Purchases"
+        ],
+        "summary": "RevenueCat webhook for one App's RevenueCat project",
+        "description": "Authorization must equal the value configured in RevenueCat. Events are stored once by id and projected after the response (S-BIL-04).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "echo"
+            },
+            "required": true,
+            "name": "appId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "authorization",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "api_version": {
+                    "type": "string"
+                  },
+                  "event": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "event"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "received": {
+                      "type": "boolean"
+                    },
+                    "duplicate": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "received",
+                    "duplicate"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/nonce": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Get a single-use sign-in nonce (10 minutes, bound to the App)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "app_id": {
+                    "type": "string",
+                    "example": "echo"
+                  }
+                },
+                "required": [
+                  "app_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Nonce for the native Apple or Google SDK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "nonce": {
+                      "type": "string"
+                    },
+                    "expires_in": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "nonce",
+                    "expires_in"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/apple": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Sign in or sign up with a native Sign in with Apple ID token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id_token": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8192
+                  },
+                  "nonce": {
+                    "type": "string",
+                    "minLength": 16,
+                    "maxLength": 128
+                  },
+                  "authorization_code": {
+                    "type": "string",
+                    "maxLength": 1024,
+                    "description": "Apple only; lets Starry revoke the token at account deletion"
+                  },
+                  "redirect_uri": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "description": "Apple web flows only: the redirect URI the authorization code was issued for (Android relay: https://id.starry.phd/auth/apple/callback; an App web version: its own registered URL)"
+                  },
+                  "app_id": {
+                    "type": "string",
+                    "example": "echo"
+                  },
+                  "device_label": {
+                    "type": "string",
+                    "maxLength": 80
+                  }
+                },
+                "required": [
+                  "id_token",
+                  "nonce",
+                  "app_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/google": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Sign in or sign up with a native Google ID token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id_token": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8192
+                  },
+                  "nonce": {
+                    "type": "string",
+                    "minLength": 16,
+                    "maxLength": 128
+                  },
+                  "authorization_code": {
+                    "type": "string",
+                    "maxLength": 1024,
+                    "description": "Apple only; lets Starry revoke the token at account deletion"
+                  },
+                  "redirect_uri": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "description": "Apple web flows only: the redirect URI the authorization code was issued for (Android relay: https://id.starry.phd/auth/apple/callback; an App web version: its own registered URL)"
+                  },
+                  "app_id": {
+                    "type": "string",
+                    "example": "echo"
+                  },
+                  "device_label": {
+                    "type": "string",
+                    "maxLength": 80
+                  }
+                },
+                "required": [
+                  "id_token",
+                  "nonce",
+                  "app_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/refresh": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Rotate tokens; reusing an old refresh token revokes the session",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refresh_token": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "refresh_token"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "New token pair; replace the stored refresh token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPair"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "End the current session",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Signed out"
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/logout-all": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "End every session of the member in every Starry App",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "All sessions ended"
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/battery": {
+      "get": {
+        "tags": [
+          "Battery"
+        ],
+        "summary": "The member's Starry Battery: this month's balance and the last 30 days",
+        "description": "Free monthly AI allowance shared by every Starry App (S-BAT-04). Read-only; Battery cannot be bought.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Balance and activity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatteryActivity"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "The signed-in member: profile, sign-in methods, consent and deletion state",
+        "description": "Also available while deletion is pending, so the App can offer to cancel it.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/profile": {
+      "patch": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Change profile fields and their visibility",
+        "description": "Send only the fields to change, with If-Match set to the profile version you edited; a stale version is never written (409). Empty text clears an optional field. 400 errors name the field in the message.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "\"3\""
+            },
+            "required": false,
+            "name": "if-match",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "display_name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Name (姓名), 1-50 characters, or null to clear"
+                  },
+                  "birthday": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "YYYY-MM-DD, or null to clear"
+                  },
+                  "locale": {
+                    "type": "string",
+                    "example": "zh-TW"
+                  },
+                  "contact_email": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Main contact email; a verification link is sent when it changes. Empty or null clears it."
+                  },
+                  "phone": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Stored as E.164; a local number takes the country calling code (Taiwan by default)",
+                    "example": "0912345678"
+                  },
+                  "country": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "ISO 3166-1 alpha-2",
+                    "example": "TW"
+                  },
+                  "region": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "State, province or county, at most 60 characters"
+                  },
+                  "city": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "At most 60 characters"
+                  },
+                  "motto": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "At most 200 characters"
+                  },
+                  "visibility": {
+                    "type": "object",
+                    "properties": {
+                      "display_name": {
+                        "type": "string",
+                        "enum": [
+                          "public",
+                          "private"
+                        ]
+                      },
+                      "avatar": {
+                        "type": "string",
+                        "enum": [
+                          "public",
+                          "private"
+                        ]
+                      },
+                      "birthday": {
+                        "type": "string",
+                        "enum": [
+                          "public",
+                          "private"
+                        ],
+                        "description": "Public shows month and day only; always private for members under 18"
+                      },
+                      "derived": {
+                        "type": "string",
+                        "enum": [
+                          "public",
+                          "private"
+                        ],
+                        "description": "Zodiac and life path number; always private for members under 18"
+                      },
+                      "location": {
+                        "type": "string",
+                        "enum": [
+                          "public",
+                          "private"
+                        ],
+                        "description": "Country, state/province and city"
+                      },
+                      "phone": {
+                        "type": "string",
+                        "enum": [
+                          "public",
+                          "private"
+                        ]
+                      },
+                      "motto": {
+                        "type": "string",
+                        "enum": [
+                          "public",
+                          "private"
+                        ]
+                      },
+                      "contact_email": {
+                        "type": "string",
+                        "enum": [
+                          "public",
+                          "private"
+                        ],
+                        "description": "Shown only once verified"
+                      }
+                    },
+                    "description": "Only the fields to change"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The profile changed elsewhere; the current profile is returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionConflict"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "If-Match required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/contact-email/verification": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Send the verification link for the main contact email again",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Already verified",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verified": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "verified"
+                  ]
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sent": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "sent"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the current state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/motto-suggestion": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "A random motto to fill the edit box (02.05); nothing is saved",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "required": false,
+            "name": "current",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Suggestion",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "motto": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "motto"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/consents": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Accept the current terms of service and privacy policy",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "terms_version": {
+                    "type": "string"
+                  },
+                  "privacy_version": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "terms_version",
+                  "privacy_version"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Recorded"
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/deletion": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Delete the account (disabled at once, purged after 7 days unless cancelled)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "confirm": {
+                    "type": "boolean",
+                    "enum": [
+                      true
+                    ]
+                  }
+                },
+                "required": [
+                  "confirm"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Deletion scheduled; all sessions ended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "deletion_purge_at": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "deletion_purge_at"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the current state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Cancel a pending deletion",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account active again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the current state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/identities/apple": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Link Sign in with Apple to the signed-in member",
+        "description": "Needs a fresh nonce and ID token for that provider, issued for the same App. When that sign-in already made a separate Starry account, 409 IDENTITY_IN_USE says whether it can be merged; resend with merge_other_account: true after the member agrees.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id_token": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8192
+                  },
+                  "nonce": {
+                    "type": "string",
+                    "minLength": 16,
+                    "maxLength": 128
+                  },
+                  "authorization_code": {
+                    "type": "string",
+                    "maxLength": 1024,
+                    "description": "Apple only; lets Starry revoke the token at account deletion"
+                  },
+                  "redirect_uri": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "description": "Apple web flows only: the redirect URI the authorization code was issued for (Android relay: https://id.starry.phd/auth/apple/callback; an App web version: its own registered URL)"
+                  },
+                  "merge_other_account": {
+                    "type": "boolean",
+                    "description": "If this sign-in already made its own Starry account, merge that account into this one. Ask the member first; the other account is deleted."
+                  }
+                },
+                "required": [
+                  "id_token",
+                  "nonce"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Already linked to this member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "provider": {
+                      "type": "string"
+                    },
+                    "linked": {
+                      "type": "boolean"
+                    },
+                    "merged": {
+                      "type": "boolean",
+                      "description": "true when a separate Starry account made earlier with this sign-in was merged into this one"
+                    }
+                  },
+                  "required": [
+                    "provider",
+                    "linked"
+                  ]
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Linked (or merged)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "provider": {
+                      "type": "string"
+                    },
+                    "linked": {
+                      "type": "boolean"
+                    },
+                    "merged": {
+                      "type": "boolean",
+                      "description": "true when a separate Starry account made earlier with this sign-in was merged into this one"
+                    }
+                  },
+                  "required": [
+                    "provider",
+                    "linked"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The sign-in belongs to another Starry account, or this provider is already linked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkConflict"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/identities/google": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Link Google to the signed-in member",
+        "description": "Needs a fresh nonce and ID token for that provider, issued for the same App. When that sign-in already made a separate Starry account, 409 IDENTITY_IN_USE says whether it can be merged; resend with merge_other_account: true after the member agrees.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id_token": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8192
+                  },
+                  "nonce": {
+                    "type": "string",
+                    "minLength": 16,
+                    "maxLength": 128
+                  },
+                  "authorization_code": {
+                    "type": "string",
+                    "maxLength": 1024,
+                    "description": "Apple only; lets Starry revoke the token at account deletion"
+                  },
+                  "redirect_uri": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "description": "Apple web flows only: the redirect URI the authorization code was issued for (Android relay: https://id.starry.phd/auth/apple/callback; an App web version: its own registered URL)"
+                  },
+                  "merge_other_account": {
+                    "type": "boolean",
+                    "description": "If this sign-in already made its own Starry account, merge that account into this one. Ask the member first; the other account is deleted."
+                  }
+                },
+                "required": [
+                  "id_token",
+                  "nonce"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Already linked to this member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "provider": {
+                      "type": "string"
+                    },
+                    "linked": {
+                      "type": "boolean"
+                    },
+                    "merged": {
+                      "type": "boolean",
+                      "description": "true when a separate Starry account made earlier with this sign-in was merged into this one"
+                    }
+                  },
+                  "required": [
+                    "provider",
+                    "linked"
+                  ]
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Linked (or merged)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "provider": {
+                      "type": "string"
+                    },
+                    "linked": {
+                      "type": "boolean"
+                    },
+                    "merged": {
+                      "type": "boolean",
+                      "description": "true when a separate Starry account made earlier with this sign-in was merged into this one"
+                    }
+                  },
+                  "required": [
+                    "provider",
+                    "linked"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The sign-in belongs to another Starry account, or this provider is already linked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkConflict"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/avatar": {
+      "put": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Upload an avatar (WebP, JPEG or PNG, at most 256 KB, cropped square by the App)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "image/webp": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Remove the avatar (Apps then show the first character of the name)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/entitlements": {
+      "get": {
+        "tags": [
+          "Purchases"
+        ],
+        "summary": "Active entitlements in the App that issued the token",
+        "description": "RevenueCat projection (S-BIL-04). Entitlements never cross Apps; the App SDK stays the live source.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Active entitlements",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Entitlements"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/push-tokens": {
+      "put": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Register this device's Expo push token for the token's App",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "example": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]"
+                  },
+                  "platform": {
+                    "type": "string",
+                    "example": "ios"
+                  }
+                },
+                "required": [
+                  "token",
+                  "platform"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Registered"
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Remove a push token; call before signing out on the device",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/notification-preferences": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Per-category push choices for the token's App (categories without a choice are on)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Choices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPreferences"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Turn push categories on or off",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "categories": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "boolean"
+                    },
+                    "example": {
+                      "reminders": false
+                    }
+                  }
+                },
+                "required": [
+                  "categories"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPreferences"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/battery/reservations": {
+      "post": {
+        "tags": [
+          "Battery"
+        ],
+        "summary": "App backend: reserve Battery before starting an AI task",
+        "description": "Needs the App backend service key (x-starry-app-key) and the member access token of the same App. Retrying with the same idempotency_key returns the same reservation. 409 BATTERY_INSUFFICIENT when the allowance does not cover it.",
+        "security": [
+          {
+            "appKey": [],
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "x-starry-app-key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "task_type": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 64,
+                    "example": "echo.transcribe"
+                  },
+                  "units": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000,
+                    "description": "Estimated usage in the task type unit, e.g. minutes of audio"
+                  },
+                  "idempotency_key": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "task_type",
+                  "units",
+                  "idempotency_key"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Same idempotency key: the existing reservation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatteryReservation"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Reserved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatteryReservation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not enough Battery, or the idempotency key was used for a different request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatteryConflict"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/battery/reservations/{reservationId}/commit": {
+      "post": {
+        "tags": [
+          "Battery"
+        ],
+        "summary": "App backend: the AI task succeeded; charge the reservation",
+        "description": "Idempotent. units (optional) is the actual usage, at most what was reserved. After the timeout nothing is charged: 409 RESERVATION_EXPIRED.",
+        "security": [
+          {
+            "appKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "required": true,
+            "name": "reservationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "x-starry-app-key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "units": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Committed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatteryReservation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Expired or already released",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatteryConflict"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/battery/reservations/{reservationId}/release": {
+      "post": {
+        "tags": [
+          "Battery"
+        ],
+        "summary": "App backend: the AI task failed or was cancelled; return the reservation",
+        "description": "Idempotent. 409 RESERVATION_CLOSED when it was already committed.",
+        "security": [
+          {
+            "appKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "required": true,
+            "name": "reservationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "x-starry-app-key",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Released",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatteryReservation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Already committed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatteryConflict"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}

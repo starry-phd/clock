@@ -1,0 +1,12 @@
+# Clock optional Worker. No account_id and no secret values in this repo.
+name = "clock-api"
+main = "src/index.mjs"
+compatibility_date = "2026-11-05"
+
+[env.staging]
+name = "clock-api-staging"
+
+[env.production]
+name = "clock-api"
+
+# When approved, put STARRY_BATTERY_KEY via Cloudflare Worker Secrets.

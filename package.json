@@ -5,7 +5,9 @@
   "packageManager": "pnpm@10.18.0",
   "scripts": {
     "test:clock": "node --test packages/clock-core/test/clock.test.mjs",
-    "typecheck": "pnpm --dir apps/clock exec tsc --noEmit",
-    "web": "pnpm --dir apps/clock web"
+    "typecheck": "pnpm codegen:starry && pnpm --dir apps/clock exec tsc --noEmit",
+    "web": "pnpm --dir apps/clock web",
+    "codegen:starry": "pnpm --dir apps/clock codegen:starry",
+    "postinstall": "pnpm codegen:starry"
   }
 }
