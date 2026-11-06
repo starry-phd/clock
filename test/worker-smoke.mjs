@@ -15,6 +15,11 @@ test('worker serves PWA and offline assets with strict CSP',async()=>{
     const payload=html.split('<'+tag+'>')[1].split('</'+tag+'>')[0];
     assert.ok(csp.includes(createHash('sha256').update(payload).digest('base64')));
   }
+  const callback=await get('/auth/done');
+  assert.equal(callback.status,200,'registered web callback must route to PWA');
+  assert.equal(callback.headers.get('Cache-Control'),'no-store','OAuth callback must not be cached');
+  assert.ok(callback.headers.get('Content-Security-Policy')?.includes('https://id.starry.phd'),'CSP must allow Starry identity API');
+  assert.match(await callback.text(),/loginGoogle/,'callback serves app auth handler');
   for (const path of ['/manifest.webmanifest','/sw.js','/icon.svg']){
     const x=await get(path);assert.equal(x.status,200);assert.ok((await x.text()).length>100);
   }
