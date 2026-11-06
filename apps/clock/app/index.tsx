@@ -134,7 +134,7 @@ export default function ClockScreen() {
     try{
       if(!editor.id&&presets.length>=3){
         const p=(await loadClockPricing()).features.find(x=>x.feature==='clock.preset_create');
-        if(!p||!p.enabled||!p.available){Alert.alert('尚未開放','新增第 4 組起需消耗繁星電池，後端服務尚未開放。現有計時不受影響。');return;}
+        if(!p||!p.enabled||!p.available){Alert.alert('電池服務尚未開放','暫時無法以電池新增第 4 組。你可在這個視窗下方免費選擇一組既有用途取代，不增加計時器總數，也不扣電池。');return;}
         const accepted=await new Promise<boolean>(resolve=>Alert.alert(
           '確認消耗繁星電池',
           '新增這一組計時器需扣 '+p.units+' 顆電池。每月額度跨 Starry Apps 共用；只有新增成功才扣。',
