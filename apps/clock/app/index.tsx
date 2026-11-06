@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert, AppState, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView,
+  Alert, AppState, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView,
   StyleSheet, Text, TextInput, useWindowDimensions, View
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -11,6 +11,7 @@ import {
   newTimer, pauseTimer, sanitizePresets, startTimer, tickTimer, TimerSnapshot
 } from '@clock/core';
 import {readAppConfig} from '@clock/auth-contract';
+import {StarryAccountPanel} from '../src/auth/StarryAccountPanel';
 
 const DATA_KEY = 'clock:preferences:v1';
 const COLORS = { bg:'#0B1220', panel:'#162338', muted:'#9CB1CA', fg:'#F7FAFF', mint:'#80F4D6', orange:'#FFCA75', line:'#29364A', danger:'#FF8E95' };
@@ -169,10 +170,7 @@ export default function ClockScreen() {
       <Pressable style={styles.settingRow} onPress={()=>setMuted(v=>!v)}><Text style={styles.fieldLabel}>提醒音效</Text><Text style={styles.add}>{muted?'已靜音 · 點擊開啟':'已開啟 · 點擊靜音'}</Text></Pressable>
       <Text style={styles.note}>計時器在畫面開啟時運作最穩定。手機鎖屏或系統終止 App 時，不保證準時響鈴。</Text>
       <Text style={styles.fieldLabel}>Starry ID 中央會員：{memberStatus}</Text>
-      <Pressable accessibilityRole="link" onPress={()=>Linking.openURL('https://id.starry.phd/account').catch(()=>{})}>
-        <Text style={styles.add}>開啟 Starry ID 帳號中心</Text>
-      </Pressable>
-      <Text style={styles.note}>clock 尚須在中央 App Registry 登記後才能啟用本 App 內的官方登入；倒數功能不需登入。</Text>
+      <StarryAccountPanel />
       <View style={styles.modalButtons}><Button label="取消" onPress={()=>setSettings(false)}/><Button label="套用" onPress={saveSettings} primary/></View>
     </View></View></Modal>
   </View>;
