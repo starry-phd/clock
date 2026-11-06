@@ -24,14 +24,14 @@ body.fullscreen #app{max-width:none}body.theater header,body.theater .mode-toggl
 <header><div class="brand">CLOCK</div><div class="header-actions"><button id="sound" class="icon-btn" title="切換響鈴">聲音：開</button><button id="full" class="icon-btn">⛶ 全螢幕</button><button id="settings" class="icon-btn">⚙ 設定</button></div></header>
 <div class="mode-toggle" role="tablist" aria-label="顯示模式"><button id="timerTab" class="tab active" role="tab" aria-selected="true">倒數計時</button><button id="clockTab" class="tab" role="tab" aria-selected="false">時鐘</button></div>
 <section class="hero" aria-live="off"><div class="purpose" id="purpose">休息時間</div><div id="digits" class="digits" role="timer" aria-label="剩餘時間">05:00</div><div class="unit" id="unit">分 : 秒</div><div class="track" id="track"><div id="fill" class="fill"></div></div></section>
-<div id="timerPanel"><div class="controls"><button id="start" class="large-btn primary">開始</button><button id="reset" class="large-btn">重設</button></div><div class="presets-head"><strong>快速切換用途</strong><button id="add" class="add">＋ 新增用途</button></div><div id="presets" class="presets" aria-label="預設用途清單"></div></div>
+<div id="timerPanel"><div class="controls"><button id="start" class="large-btn primary">開始</button><button id="reset" class="large-btn">重設</button></div><div class="presets-head"><strong>快速切換用途</strong><button id="add" class="add">＋ 新增用途</button></div><p id="presetPriceInfo" class="note">計時器前 3 組免費；第 4 組起需先確認繁星電池消耗。</p><div id="presets" class="presets" aria-label="預設用途清單"></div></div>
 <p id="clockHint" class="hint hidden">超大時鐘 · 顯示時分秒</p>
 <div class="footer"><span id="summary">結束前 10 秒提醒 · 響鈴開啟 · 可離線使用</span><div id="notice" style="font-size:11px;margin-top:4px">開啟畫面時可準時提醒；鎖屏、背景分頁或系統省電可能延遲鈴聲</div></div>
 </main>
 <button id="exitTheater" aria-label="離開全螢幕" type="button">離開全螢幕</button>
 <div class="dialog-backdrop hidden" id="overlay" role="presentation"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
 <h2 id="dialogTitle">新增用途</h2><div id="presetForm"><label class="label" for="presetName">用途名稱</label><input class="textinput" id="presetName" maxlength="24" placeholder="例如：休息時間"><span class="label">倒數時間</span><div class="time-fields"><input id="minutes" class="textinput" type="number" min="0" max="1439" inputmode="numeric" value="5" aria-label="分鐘"><span>分</span><input id="seconds" class="textinput" type="number" min="0" max="59" inputmode="numeric" value="0" aria-label="秒"><span>秒</span></div><p class="note">每一種用途可設定固定倒數長度，選取後即可開始。</p></div>
-<div id="settingsForm" class="hidden"><label class="label" for="lead">結束前幾秒響鈴（0～120）</label><input id="lead" class="textinput" inputmode="numeric" type="number" min="0" max="120" value="10"><p class="note">提前提醒只響一次；歸零時會再響鈴。設定 0 代表只在歸零響鈴。</p><div class="switch"><span>提示音效</span><button id="soundToggle">開啟</button></div><div class="identity"><strong>Starry ID 中央會員</strong><p id="memberStatus">正在檢查中央登記…</p><p id="accountUser">未登入</p><div id="batteryPanel" class="hidden" aria-live="polite"><strong>繁星電池艙 Starry Battery｜會員共用的消費用量月額度</strong><p id="batteryBalance">查詢中…</p><p class="note">與已授權的 Starry Apps 共用，適用核准的 AI 與非 AI 服務；每月 1 日（台灣時間）恢復。本頁只查詢，不扣額。</p></div><p id="accountError" role="alert" style="color:var(--red)"></p><div id="accountButtons" style="display:grid;gap:9px">
+<div id="settingsForm" class="hidden"><label class="label" for="lead">結束前幾秒響鈴（0～120）</label><input id="lead" class="textinput" inputmode="numeric" type="number" min="0" max="120" value="10"><p class="note">提前提醒只響一次；歸零時會再響鈴。設定 0 代表只在歸零響鈴。</p><div class="switch"><span>提示音效</span><button id="soundToggle">開啟</button></div><div class="identity"><strong>Starry ID 中央會員</strong><p id="memberStatus">正在檢查中央登記…</p><p id="accountUser">未登入</p><div id="batteryPanel" class="hidden" aria-live="polite"><strong>繁星電池艙 Starry Battery｜會員共用的消費用量月額度</strong><p id="batteryBalance">查詢中…</p><p class="note">與已授權的 Starry Apps 共用，適用核准的 AI 與非 AI 服務；每月 1 日（台灣時間）恢復。本頁只查詢，不扣額。</p></div><div id="ownerPricing" class="hidden" style="padding:12px;border:1px solid var(--accent);border-radius:12px;margin-top:12px"><strong>Clock 超級管理員｜電池消耗設定</strong><p class="note">每項 0～30 顆，設定保存於後端並留下稽核紀錄；未完成中央驗證前不會實際扣量。</p><div id="ownerPriceRows"></div><p id="ownerPriceMessage" class="note" role="status"></p></div><p id="accountError" role="alert" style="color:var(--red)"></p><div id="accountButtons" style="display:grid;gap:9px">
 <button type="button" id="loginGoogle" class="icon-btn">使用 Google 登入 Starry</button>
 <button type="button" id="loginApple" class="icon-btn">使用 Apple 登入 Starry</button>
 <button type="button" id="consent" class="icon-btn hidden">閱讀並同意最新條款</button>
@@ -49,7 +49,7 @@ body.fullscreen #app{max-width:none}body.theater header,body.theater .mode-toggl
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 const initial=[{id:'break',name:'休息時間',durationSeconds:300},{id:'opening',name:'開場致詞',durationSeconds:180},{id:'speech',name:'主題分享',durationSeconds:1200}];
-const key='clock:preferences:v1';let presets=initial.map(x=>({...x}));let selected='break';let lead=10,muted=false,mode='timer',status='idle',durationMs=300000,remainMs=300000,deadline=null,warned=false,completed=false,editor=null,dialog=null,ctx=null,wakeLock=null,theater=false;
+const key='clock:preferences:v1';let cloudPresetIds=new Set(),pendingAdd=null,saveBusy=false;let presets=initial.map(x=>({...x}));let selected='break';let lead=10,muted=false,mode='timer',status='idle',durationMs=300000,remainMs=300000,deadline=null,warned=false,completed=false,editor=null,dialog=null,ctx=null,wakeLock=null,theater=false;
 function num(n,min,max){n=Number(n);return Number.isInteger(n)&&n>=min&&n<=max?n:null}
 function fmt(s){s=Math.max(0,Math.ceil(s));return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')}
 function read(){try{const raw=JSON.parse(localStorage.getItem(key)||'null');if(!raw||typeof raw!=='object')return;
@@ -74,15 +74,63 @@ function tick(){if(status==='running'&&deadline!==null){const old=remainMs;remai
 function closeDialog(){dialog=null;$('overlay').classList.add('hidden');$('formError').textContent=''}
 function openDialog(type){dialog=type;$('overlay').classList.remove('hidden');$('presetForm').classList.toggle('hidden',type!=='preset');$('settingsForm').classList.toggle('hidden',type!=='settings');$('delete').classList.toggle('hidden',type!=='preset'||!editor||presets.length<2);$('dialogTitle').textContent=type==='settings'?'計時器設定':editor?'編輯用途':'新增用途';$('formError').textContent='';$('save').textContent=type==='settings'?'套用':'儲存';if(type==='settings'){$('lead').value=String(lead);checkMember()}else{$('presetName').value=editor?.name||'';$('minutes').value=String(editor?Math.floor(editor.durationSeconds/60):5);$('seconds').value=String(editor?editor.durationSeconds%60:0)}setTimeout(()=>$(type==='settings'?'lead':'presetName').focus(),60)}
 function showPreset(id){editor=presets.find(p=>p.id===id)||null;openDialog('preset')}
-function save(){if(dialog==='settings'){const n=num($('lead').value,0,120);if(n===null){$('formError').textContent='請輸入 0～120 秒';return}lead=n;summary();persist();closeDialog();return}
-if(dialog==='preset'){const name=$('presetName').value.trim(),m=num($('minutes').value,0,1439),s=num($('seconds').value,0,59);if(!name||name.length>24||m===null||s===null||(m===0&&s===0)){$('formError').textContent='名稱 1～24 字；時間需介於 00:01 與 1439:59。';return}
-const p={id:editor?.id||'p'+Date.now()+'-'+Math.random().toString(36).slice(2,6),name,durationSeconds:m*60+s};if(!editor&&presets.length>=50){$('formError').textContent='最多儲存 50 組用途';return}presets=editor?presets.map(x=>x.id===editor.id?p:x):[...presets,p];choose(p.id);closeDialog()}}
+async function save(){
+if(saveBusy)return;
+if(dialog==='settings'){const n=num($('lead').value,0,120);if(n===null){$('formError').textContent='請輸入 0～120 秒';return}lead=n;summary();persist();closeDialog();return}
+if(dialog!=='preset')return;
+const name=$('presetName').value.trim(),m=num($('minutes').value,0,1439),sec=num($('seconds').value,0,59);
+if(!name||name.length>24||m===null||sec===null||(m===0&&sec===0)){
+ $('formError').textContent='名稱 1～24 字；時間需介於 00:01 與 1439:59。';return
+}
+if(!editor&&presets.length>=50){$('formError').textContent='最多儲存 50 組用途';return}
+const fingerprint=[name,m*60+sec].join('|');
+const presetId=editor?.id||(pendingAdd?.fingerprint===fingerprint?pendingAdd.id:'p'+Date.now()+'-'+Math.random().toString(36).slice(2,10));
+const p={id:presetId,name,durationSeconds:m*60+sec};
+saveBusy=true;$('save').disabled=true;$('formError').textContent='';
+try{
+ if(!editor&&presets.length>=3){
+  const pricing=await clockReq('/v1/pricing');
+  const item=pricing.features.find(x=>x.feature==='clock.preset.create');
+  if(!item?.enabled||!item.available)throw Error('第 4 組起需消耗電池，但後端扣量服務尚未開通。現有倒數不受影響。');
+  const proceed=confirm('新增此計時器將消耗 '+item.units+' 顆繁星電池。額度跨 Starry Apps 共用；只有新增成功才扣。確定新增嗎？');
+  if(!proceed)return;
+  const requestId=pendingAdd?.fingerprint===fingerprint?pendingAdd.requestId:crypto.randomUUID();
+  pendingAdd={fingerprint,id:presetId,requestId};
+  await webAuthorized(token=>clockReq('/v1/presets','POST',{
+   preset_id:presetId,request_id:requestId,name,duration_seconds:p.durationSeconds,accepted_units:item.units
+  },token));
+  pendingAdd=null;cloudPresetIds.add(presetId);
+ }else if(editor?.id&&cloudPresetIds.has(editor.id)){
+  await webAuthorized(token=>clockReq('/v1/presets/'+encodeURIComponent(editor.id),'PATCH',{
+   name,duration_seconds:p.durationSeconds
+  },token));
+ }
+ presets=editor?presets.map(x=>x.id===editor.id?p:x):[...presets,p];
+ choose(p.id);closeDialog();
+}catch(e){$('formError').textContent=e.message||'Clock 暫時無法完成新增';}
+finally{saveBusy=false;$('save').disabled=false}
+}
 function full(){if(document.fullscreenElement){document.exitFullscreen?.().catch(()=>{});document.body.classList.remove('fullscreen');return}if(document.documentElement.requestFullscreen){document.documentElement.requestFullscreen().then(()=>document.body.classList.add('fullscreen')).catch(()=>{theater=!theater;document.body.classList.toggle('theater',theater)})}else{theater=!theater;document.body.classList.toggle('theater',theater)} }
 async function checkMember(){const status=$('memberStatus');status.textContent='正在檢查 Clock App 登記…';try{const res=await fetch('/api/starry/status',{cache:'no-store'});const data=await res.json();status.textContent=data.app==='active'?'中央會員 App 已登記（尚需完成登入驗證）':data.app==='pending'?'尚未登記 clock；計時功能可正常使用':'中央會員暫時無法驗證；計時功能正常'}catch{status.textContent='會員 API 未連線；計時功能正常'}}
-$('start').addEventListener('click',start);$('reset').addEventListener('click',reset);$('timerTab').addEventListener('click',()=>{mode='timer';drawMode()});$('clockTab').addEventListener('click',()=>{mode='clock';drawMode()});$('sound').addEventListener('click',()=>{muted=!muted;unlockAudio();summary();persist()});$('soundToggle').addEventListener('click',()=>{muted=!muted;summary();persist()});$('add').addEventListener('click',()=>{editor=null;openDialog('preset')});$('settings').addEventListener('click',()=>openDialog('settings'));$('full').addEventListener('click',full);$('exitTheater').addEventListener('click',()=>{theater=false;document.body.classList.remove('theater')});$('cancel').addEventListener('click',closeDialog);$('save').addEventListener('click',save);$('delete').addEventListener('click',()=>{if(!editor||presets.length<=1)return;presets=presets.filter(p=>p.id!==editor.id);if(selected===editor.id)selected=presets[0].id;reset();persist();renderPresets();closeDialog()});$('overlay').addEventListener('click',e=>{if(e.target===$('overlay'))closeDialog()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDialog();if(e.code==='Space'&&!dialog&&mode==='timer'&&e.target===document.body){e.preventDefault();start()}});document.addEventListener('fullscreenchange',()=>document.body.classList.toggle('fullscreen',Boolean(document.fullscreenElement)));document.addEventListener('visibilitychange',()=>{tick();if(document.visibilityState==='visible')keepAwake()});
+$('start').addEventListener('click',start);$('reset').addEventListener('click',reset);$('timerTab').addEventListener('click',()=>{mode='timer';drawMode()});$('clockTab').addEventListener('click',()=>{mode='clock';drawMode()});$('sound').addEventListener('click',()=>{muted=!muted;unlockAudio();summary();persist()});$('soundToggle').addEventListener('click',()=>{muted=!muted;summary();persist()});$('add').addEventListener('click',()=>{editor=null;openDialog('preset')});$('settings').addEventListener('click',()=>openDialog('settings'));$('full').addEventListener('click',full);$('exitTheater').addEventListener('click',()=>{theater=false;document.body.classList.remove('theater')});$('cancel').addEventListener('click',closeDialog);$('save').addEventListener('click',save);$('delete').addEventListener('click',async()=>{
+if(!editor||presets.length<=1||saveBusy)return;
+saveBusy=true;
+try{
+ if(cloudPresetIds.has(editor.id)){
+  if(!confirm('刪除此雲端計時器？先前使用的繁星電池不會退還。'))return;
+  await webAuthorized(token=>clockReq('/v1/presets/'+encodeURIComponent(editor.id),'DELETE',undefined,token));
+  cloudPresetIds.delete(editor.id);
+ }
+ presets=presets.filter(p=>p.id!==editor.id);
+ if(selected===editor.id)selected=presets[0].id;
+ reset();persist();renderPresets();closeDialog();
+}catch(e){$('formError').textContent=e.message||'無法刪除';}
+finally{saveBusy=false}
+});$('overlay').addEventListener('click',e=>{if(e.target===$('overlay'))closeDialog()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDialog();if(e.code==='Space'&&!dialog&&mode==='timer'&&e.target===document.body){e.preventDefault();start()}});document.addEventListener('fullscreenchange',()=>document.body.classList.toggle('fullscreen',Boolean(document.fullscreenElement)));document.addEventListener('visibilitychange',()=>{tick();if(document.visibilityState==='visible')keepAwake()});
 
 /* Starry relay login: exactly https://clock.starry.phd/auth/done callback; fragment only. */
 const STAR='https://id.starry.phd',APPID='clock',REDIRECT='https://clock.starry.phd/auth/done';
+const CLOCK_BACKEND=location.hostname==='clock-staging.starry-phd.workers.dev'?'https://clock-api-staging.starry-phd.workers.dev':'https://clock-api.starry-phd.workers.dev';
 let webAccess=null,webMember=null,webRefreshPromise=null;
 const refreshingKey='clock:starry:refresh:v1',pendingKey='clock:starry:pending:v1';
 const qs=(obj)=>JSON.stringify(obj);
@@ -128,6 +176,64 @@ function setMemberButtons(member){
  $('undoDelete').classList.toggle('hidden',member?.status!=='pending_deletion');
  $('accountUser').textContent=member?(member.profile?.display_name||'繁星會員')+' · '+member.user_id:'未登入（倒數仍可使用）';
 }
+
+async function clockReq(path,method='GET',data,token){
+ const headers={Accept:'application/json',...(data!==undefined?{'Content-Type':'application/json'}:{}),...(token?{Authorization:'Bearer '+token}:{})};
+ const response=await fetch(CLOCK_BACKEND+path,{method,headers,body:data===undefined?undefined:JSON.stringify(data),credentials:'omit'});
+ const payload=await response.json().catch(()=>({}));
+ if(!response.ok)throw Error(payload.error?.message||'Clock API HTTP '+response.status);
+ return payload;
+}
+async function syncCloudPresets(){
+ try{
+  const result=await webAuthorized(token=>clockReq('/v1/presets','GET',undefined,token));
+  cloudPresetIds=new Set(result.presets.map(p=>p.id));
+  const seen=new Set(presets.map(p=>p.id));
+  const extra=result.presets.filter(p=>!seen.has(p.id)).map(p=>({id:p.id,name:p.name,durationSeconds:p.durationSeconds}));
+  if(extra.length){presets=[...presets,...extra].slice(0,50);persist();renderPresets();}
+ }catch{}
+}
+async function loadOwnerPrices(){
+ const root=$('ownerPricing'),rows=$('ownerPriceRows');
+ root.classList.add('hidden');rows.replaceChildren();
+ try{
+  const data=await webAuthorized(token=>clockReq('/v1/admin/pricing','GET',undefined,token));
+  if(!data.owner)return;
+  root.classList.remove('hidden');
+  for(const price of data.features){
+   const row=document.createElement('div');row.style.cssText='border-top:1px solid var(--line);padding:10px 0;display:grid;gap:6px';
+   const label=document.createElement('strong');label.textContent=price.label;
+   const hint=document.createElement('small');hint.textContent=price.feature+(price.available?' · 已就緒':' · 尚未開放扣量');
+   const controls=document.createElement('div');controls.style.cssText='display:flex;gap:8px;flex-wrap:wrap;align-items:center';
+   const field=document.createElement('input');field.type='number';field.min='0';field.max='30';field.step='1';field.value=String(price.units);field.style.cssText='max-width:80px;padding:8px';
+   const active=document.createElement('input');active.type='checkbox';active.checked=price.enabled;
+   const activeLabel=document.createElement('label');activeLabel.textContent='啟用';activeLabel.prepend(active);
+   const saveButton=document.createElement('button');saveButton.type='button';saveButton.className='icon-btn';saveButton.textContent='儲存';
+   saveButton.onclick=async()=>{
+    const units=Number(field.value);if(!Number.isInteger(units)||units<0||units>30){$('ownerPriceMessage').textContent='消耗量必須是 0～30 的整數';return}
+    saveButton.disabled=true;
+    try{
+     const answer=await webAuthorized(token=>clockReq('/v1/admin/pricing','PUT',{feature:price.feature,units,enabled:active.checked,version:price.version},token));
+     price.version=answer.price.version;
+     hint.textContent=price.feature+(answer.price.available?' · 已就緒':' · 尚未開放扣量');
+     $('ownerPriceMessage').textContent=price.label+'：已安全儲存並記錄異動。';
+     void showPublicPricing();
+    }catch(e){$('ownerPriceMessage').textContent=e.message}
+    finally{saveButton.disabled=false}
+   };
+   controls.append(field,document.createTextNode('顆／次'),activeLabel,saveButton);
+   row.append(label,hint,controls);rows.append(row);
+  }
+ }catch{} // Keep hidden unless the backend proves Owner authorization.
+}
+async function showPublicPricing(){
+ try{
+  const config=await clockReq('/v1/pricing');
+  const item=config.features.find(x=>x.feature==='clock.preset.create');
+  $('presetPriceInfo').textContent='前 3 組免費；第 4 組起每新增 1 組'+(item?.available?'消耗 '+item.units+' 顆繁星電池。':'需確認 X 顆電池（目前尚未開放）。');
+ }catch{$('presetPriceInfo').textContent='前 3 組免費；電池服務暫時無法連線，新增第 4 組暫停。'}
+}
+
 async function loadMemberWebUI(){
  const member=await loadWebMember();
  setMemberButtons(member);
@@ -142,8 +248,10 @@ async function loadMemberWebUI(){
  }catch{
    $('batteryBalance').textContent='額度暫時無法讀取，不影響免費倒數計時。';
  }
+ await syncCloudPresets();
+ await loadOwnerPrices();
 }
-function logoutWebLocal(){webAccess=null;webMember=null;sessionStorage.removeItem(refreshingKey);sessionStorage.removeItem(pendingKey);setMemberButtons(null);$('batteryPanel').classList.add('hidden');$('batteryBalance').textContent='';}
+function logoutWebLocal(){webAccess=null;webMember=null;cloudPresetIds=new Set();sessionStorage.removeItem(refreshingKey);sessionStorage.removeItem(pendingKey);setMemberButtons(null);$('batteryPanel').classList.add('hidden');$('ownerPricing').classList.add('hidden');$('batteryBalance').textContent='';}
 function bytesHex(bytes){return Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('')}
 async function relayWeb(provider,operation='login'){
  $('accountError').textContent='';
@@ -222,7 +330,7 @@ webAction('deleteMember',async()=>{
 webAction('undoDelete',async()=>{await webAuthorized(t=>starryReq('/v1/me/deletion',{method:'DELETE'},t));await loadMemberWebUI()});
 void completeWebRelay().then(()=>loadMemberWebUI()).catch(()=>{});
 
-read();reset();renderPresets();summary();setInterval(tick,100);drawMode();if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
+read();reset();renderPresets();summary();void showPublicPricing();setInterval(tick,100);drawMode();if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 })();
 </script>
 </body></html>

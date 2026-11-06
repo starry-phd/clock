@@ -6,12 +6,14 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAudioPlayer } from 'expo-audio';
 import { useKeepAwake } from 'expo-keep-awake';
+import * as Crypto from 'expo-crypto';
 import {
   ClockPreset, DEFAULT_PRESETS, formatCountdown, formatLocalClock,
   newTimer, pauseTimer, sanitizePresets, startTimer, tickTimer, TimerSnapshot
 } from '@clock/core';
 import {readAppConfig} from '@clock/auth-contract';
 import {StarryAccountPanel} from '../src/auth/StarryAccountPanel';
+import {loadClockPricing,createChargedPreset,readCloudPresets,editCloudPreset,removeCloudPreset} from '../src/auth/clockApi';
 
 const DATA_KEY = 'clock:preferences:v1';
 const COLORS = { bg:'#0B1220', panel:'#162338', muted:'#9CB1CA', fg:'#F7FAFF', mint:'#80F4D6', orange:'#FFCA75', line:'#29364A', danger:'#FF8E95' };
@@ -37,6 +39,9 @@ export default function ClockScreen() {
   const [settings,setSettings]=useState(false);
   const [settingSeconds,setSettingSeconds]=useState('10');
   const [ready,setReady]=useState(false);
+  const [cloudIds,setCloudIds]=useState<string[]>([]);
+  const [saving,setSaving]=useState(false);
+  const pendingCreate=useRef<{fingerprint:string;requestId:string;presetId:string}|null>(null);
   const [memberStatus,setMemberStatus]=useState('檢查中…');
   const [timer,setTimer]=useState<TimerSnapshot>(newTimer(DEFAULT_PRESETS[0].durationSeconds));
   const timerRef=useRef(timer);
@@ -91,29 +96,80 @@ export default function ClockScreen() {
     return()=>{clearInterval(t);s.remove()};
   },[play,setTimerSync]);
 
+  // Merge server-authoritative charged presets on the same Starry user_id.
+  // Existing device presets are preserved; they are grandfathered and not back-charged.
+  useEffect(()=>{
+    if(!ready)return;
+    let live=true;
+    readCloudPresets().then(({presets:remote})=>{
+      if(!live)return;
+      setCloudIds(remote.map(p=>p.id));
+      setPresets(old=>{
+        const current=new Set(old.map(p=>p.id));
+        const additions=remote.filter(p=>!current.has(p.id)).map(p=>({
+          id:p.id,name:p.name,durationSeconds:p.durationSeconds
+        }));
+        return additions.length?sanitizePresets([...old,...additions]):old;
+      });
+    }).catch(()=>{}); // login optional; offline clock must still work.
+    return()=>{live=false};
+  },[ready,settings]);
+
   const choose=useCallback((p:ClockPreset)=>{setSelectedId(p.id);setTimerSync(newTimer(p.durationSeconds));},[setTimerSync]);
   const toggle=useCallback(()=>{
     const cur=timerRef.current;
     setTimerSync(cur.status==='running'?pauseTimer(cur,Date.now()):startTimer(cur,Date.now()));
   },[setTimerSync]);
   const reset=useCallback(()=>{const p=presets.find(x=>x.id===selectedId)||presets[0];setTimerSync(newTimer(p.durationSeconds));},[presets,selectedId,setTimerSync]);
-  const saveEditor=useCallback(()=>{
-    if(!editor)return;
-    const name=editor.name.trim(); const m=Number(editor.minutes);const s=Number(editor.seconds);
-    if(!name||name.length>24||!Number.isInteger(m)||!Number.isInteger(s)||m<0||m>1439||s<0||s>59||(m===0&&s===0)){
+  const saveEditor=useCallback(async()=>{
+    if(!editor||saving)return;
+    const name=editor.name.trim(),m=Number(editor.minutes),seconds=Number(editor.seconds);
+    if(!name||name.length>24||!Number.isInteger(m)||!Number.isInteger(seconds)||m<0||m>1439||seconds<0||seconds>59||(m===0&&seconds===0)){
       Alert.alert('請檢查設定','名稱 1～24 字，時間需介於 00:01 與 1439:59。');return;
     }
-    const id=editor.id||`custom-${Date.now()}`;
-    const next={id,name,durationSeconds:m*60+s};
-    const updated=editor.id?presets.map(p=>p.id===id?next:p):[...presets,next];
-    if(updated.length>50){Alert.alert('已達上限','最多儲存 50 組用途。');return;}
-    setPresets(updated);choose(next);setEditor(null);
-  },[editor,presets,choose]);
-  const remove=useCallback(()=>{
-    if(!editor?.id||presets.length===1)return;
-    const updated=presets.filter(p=>p.id!==editor.id);
-    setPresets(updated);if(selectedId===editor.id)choose(updated[0]);setEditor(null);
-  },[editor,presets,selectedId,choose]);
+    const id=editor.id||pendingCreate.current?.presetId||'custom-'+Date.now()+'-'+Crypto.randomUUID().slice(0,8);
+    const next={id,name,durationSeconds:m*60+seconds};
+    if(!editor.id&&presets.length>=50){Alert.alert('已達上限','最多儲存 50 組用途。');return;}
+    setSaving(true);
+    try{
+      if(!editor.id&&presets.length>=3){
+        const p=(await loadClockPricing()).features.find(x=>x.feature==='clock.preset.create');
+        if(!p||!p.enabled||!p.available){Alert.alert('尚未開放','新增第 4 組起需消耗繁星電池，後端服務尚未開放。現有計時不受影響。');return;}
+        const accepted=await new Promise<boolean>(resolve=>Alert.alert(
+          '確認消耗繁星電池',
+          '新增這一組計時器需扣 '+p.units+' 顆電池。每月額度跨 Starry Apps 共用；只有新增成功才扣。',
+          [{text:'取消',style:'cancel',onPress:()=>resolve(false)},{text:'確認新增',onPress:()=>resolve(true)}],
+          {cancelable:false}
+        ));
+        if(!accepted)return;
+        const fingerprint=[next.id,next.name,next.durationSeconds,p.units].join('|');
+        const requestId=pendingCreate.current?.fingerprint===fingerprint
+          ? pendingCreate.current.requestId:Crypto.randomUUID();
+        pendingCreate.current={fingerprint,requestId,presetId:id};
+        await createChargedPreset(next,requestId,p.units);
+        pendingCreate.current=null;
+        setCloudIds(old=>[...old,id]);
+      }else if(editor.id&&cloudIds.includes(editor.id)){
+        await editCloudPreset(next);
+      }
+      const updated=editor.id?presets.map(v=>v.id===id?next:v):[...presets,next];
+      setPresets(updated);choose(next);setEditor(null);
+    }catch(e){Alert.alert('無法儲存',(e as Error).message||'新增失敗，未完成扣量確認。');}
+    finally{setSaving(false);}
+  },[editor,presets,choose,cloudIds,saving]);
+  const remove=useCallback(async()=>{
+    if(!editor?.id||presets.length===1||saving)return;
+    setSaving(true);
+    try{
+      if(cloudIds.includes(editor.id)){
+        await removeCloudPreset(editor.id); // no refund for prior consumed quota
+        setCloudIds(old=>old.filter(x=>x!==editor.id));
+      }
+      const updated=presets.filter(p=>p.id!==editor.id);
+      setPresets(updated);if(selectedId===editor.id)choose(updated[0]);setEditor(null);
+    }catch(e){Alert.alert('無法刪除',(e as Error).message||'請稍後再試');}
+    finally{setSaving(false);}
+  },[editor,presets,selectedId,choose,cloudIds,saving]);
   const saveSettings=()=>{
     const n=Number(settingSeconds);
     if(!Number.isInteger(n)||n<0||n>120){Alert.alert('提醒秒數','請輸入 0～120 秒。0 表示只在歸零時響鈴。');return;}
@@ -154,12 +210,13 @@ export default function ClockScreen() {
 
     <Modal transparent visible={!!editor} animationType="fade" onRequestClose={()=>setEditor(null)}><KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS==='ios'?'padding':undefined}><View style={styles.modal}>
       <Text style={styles.modalTitle}>{editor?.id?'編輯用途':'新增用途'}</Text>
+      {!editor?.id&&<Text style={styles.note}>前 3 組免費。第 4 組起依繁星電池艙顯示實際 X 顆，經確認後才扣量。</Text>}
       <Text style={styles.fieldLabel}>名稱</Text>
       <TextInput value={editor?.name||''} onChangeText={name=>setEditor(e=>e?{...e,name}:e)} maxLength={24} placeholder="例如：休息時間" placeholderTextColor={COLORS.muted} style={styles.input}/>
       <Text style={styles.fieldLabel}>倒數長度</Text>
       <View style={{flexDirection:'row',gap:10,alignItems:'center'}}><TextInput value={editor?.minutes||''} onChangeText={minutes=>setEditor(e=>e?{...e,minutes}:e)} keyboardType="number-pad" style={[styles.input,{flex:1}]} /><Text style={styles.fieldLabel}>分</Text><TextInput value={editor?.seconds||''} onChangeText={seconds=>setEditor(e=>e?{...e,seconds}:e)} keyboardType="number-pad" style={[styles.input,{flex:1}]} /><Text style={styles.fieldLabel}>秒</Text></View>
-      <View style={styles.modalButtons}><Button label="取消" onPress={()=>setEditor(null)}/><Button label="儲存" primary onPress={saveEditor}/></View>
-      {!!editor?.id&&presets.length>1&&<Pressable onPress={remove}><Text style={[styles.add,{color:COLORS.danger,textAlign:'center',marginTop:18}]}>刪除此用途</Text></Pressable>}
+      <View style={styles.modalButtons}><Button label="取消" onPress={()=>setEditor(null)}/><Button label={saving?'處理中…':'儲存'} primary disabled={saving} onPress={()=>{void saveEditor();}}/></View>
+      {!!editor?.id&&presets.length>1&&<Pressable disabled={saving} onPress={()=>{void remove();}}><Text style={[styles.add,{color:COLORS.danger,textAlign:'center',marginTop:18}]}>刪除此用途</Text></Pressable>}
     </View></KeyboardAvoidingView></Modal>
 
     <Modal transparent visible={settings} animationType="fade" onRequestClose={()=>setSettings(false)}><View style={styles.overlay}><View style={styles.modal}>

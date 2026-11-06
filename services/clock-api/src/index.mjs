@@ -1,3 +1,4 @@
+import {handleClock} from './routes.mjs';
 // Clock optional backend: no charge-enabled endpoints, no Starry ID changes.
 // Starry Battery = member-shared monthly consumption quota (AI + approved non-AI).
 const ID = 'https://id.starry.phd';
@@ -68,8 +69,14 @@ export async function runBatteryBackedTask({memberToken,taskType='clock.ai',unit
     throw error;
   }
 }
-const reply=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json','cache-control':'no-store','x-content-type-options':'nosniff'}});
-export default {async fetch(request){
-  if(new URL(request.url).pathname==='/health')return reply({status:'ok',service:'clock-api',app_id:'clock',ai_enabled:false});
-  return reply({error:{code:'NOT_AVAILABLE',message:'Clock AI task not enabled'}},404);
-}};
+export default {
+ async fetch(request,env){
+  return handleClock(request,env,async(accessToken)=>{
+   if(env?.BATTERY_CHARGES_ENABLED==='true'||request.method!=='GET'){
+     // Every sensitive action checks fresh Starry JWKS; fail closed if unavailable.
+     return verifyAccessViaJWKS(accessToken);
+   }
+   return verifyAccessViaJWKS(accessToken);
+  });
+ }
+};
