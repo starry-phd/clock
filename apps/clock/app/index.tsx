@@ -41,7 +41,7 @@ export default function ClockScreen() {
   const [ready,setReady]=useState(false);
   const [cloudIds,setCloudIds]=useState<string[]>([]);
   const [saving,setSaving]=useState(false);
-  const pendingCreate=useRef<{fingerprint:string;requestId:string}|null>(null);
+  const pendingCreate=useRef<{fingerprint:string;requestId:string;presetId:string}|null>(null);
   const [memberStatus,setMemberStatus]=useState('檢查中…');
   const [timer,setTimer]=useState<TimerSnapshot>(newTimer(DEFAULT_PRESETS[0].durationSeconds));
   const timerRef=useRef(timer);
@@ -127,7 +127,7 @@ export default function ClockScreen() {
     if(!name||name.length>24||!Number.isInteger(m)||!Number.isInteger(seconds)||m<0||m>1439||seconds<0||seconds>59||(m===0&&seconds===0)){
       Alert.alert('請檢查設定','名稱 1～24 字，時間需介於 00:01 與 1439:59。');return;
     }
-    const id=editor.id||'custom-'+Date.now()+'-'+Crypto.randomUUID().slice(0,8);
+    const id=editor.id||pendingCreate.current?.presetId||'custom-'+Date.now()+'-'+Crypto.randomUUID().slice(0,8);
     const next={id,name,durationSeconds:m*60+seconds};
     if(!editor.id&&presets.length>=50){Alert.alert('已達上限','最多儲存 50 組用途。');return;}
     setSaving(true);
@@ -145,7 +145,7 @@ export default function ClockScreen() {
         const fingerprint=[next.id,next.name,next.durationSeconds,p.units].join('|');
         const requestId=pendingCreate.current?.fingerprint===fingerprint
           ? pendingCreate.current.requestId:Crypto.randomUUID();
-        pendingCreate.current={fingerprint,requestId};
+        pendingCreate.current={fingerprint,requestId,presetId:id};
         await createChargedPreset(next,requestId,p.units);
         pendingCreate.current=null;
         setCloudIds(old=>[...old,id]);
