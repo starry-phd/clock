@@ -27,6 +27,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -40,6 +42,8 @@ jobs:
       - run: node --test test/worker-smoke.mjs
       - run: node --test test/starry-relay.test.mjs
       - run: node --test test/clock-api.test.mjs
+      - run: node --test test/platform-parity.test.mjs
+      - run: python3 tools/check_platform_parity.py
       - run: python3 tools/preflight.py --checks static
       - run: pnpm --dir apps/clock exec tsc --noEmit
   registry:
