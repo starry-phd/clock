@@ -53,23 +53,23 @@ it('accepts a separate non-AI task type and prevents undisclosed central price m
    const path=new URL(url).pathname;
    seen.push({path,body:options.body?JSON.parse(options.body):null});
    if(path==='/.well-known/jwks.json')return {ok:true,json:async()=>({keys:[jwk]})};
-   if(path===route)return {ok:true,json:async()=>({reservation_id:'res-1',task_type:'clock.preset.create',status:'reserved',units:2,amount:2,replayed:false})};
+   if(path===route)return {ok:true,json:async()=>({reservation_id:'res-1',task_type:'clock.preset_create',status:'reserved',units:2,amount:2,replayed:false})};
    if(path.endsWith('/commit')||path.endsWith('/release'))return {ok:true,json:async()=>({status:path.endsWith('/commit')?'committed':'released'})};
    throw Error('unrecognized mock API: '+path);
  };
  let calls=0;
- const result=await runBatteryBackedTask({memberToken:token,taskType:'clock.preset.create',units:2,idempotencyKey:'preset:create:123',env:{STARRY_BATTERY_KEY:'mock-only'},fetchFn:fakeFetch,execute:async()=>{calls++;return 'preset-created'}});
+ const result=await runBatteryBackedTask({memberToken:token,taskType:'clock.preset_create',units:2,idempotencyKey:'preset:create:123',env:{STARRY_BATTERY_KEY:'mock-only'},fetchFn:fakeFetch,execute:async()=>{calls++;return 'preset-created'}});
  assert.equal(result,'preset-created');
  assert.equal(calls,1);
- assert.equal(seen.find(x=>x.path===route)?.body?.task_type,'clock.preset.create');
+ assert.equal(seen.find(x=>x.path===route)?.body?.task_type,'clock.preset_create');
  assert.equal(seen.filter(x=>x.path.endsWith('/commit')).length,1);
  const wrongPrice=async(url,options={})=>{
   const path=new URL(url).pathname;
   if(path==='/.well-known/jwks.json')return {ok:true,json:async()=>({keys:[jwk]})};
-  if(path===route)return {ok:true,json:async()=>({reservation_id:'res-2',task_type:'clock.preset.create',status:'reserved',units:2,amount:4,replayed:false})};
+  if(path===route)return {ok:true,json:async()=>({reservation_id:'res-2',task_type:'clock.preset_create',status:'reserved',units:2,amount:4,replayed:false})};
   if(path.endsWith('/release'))return {ok:true,json:async()=>({status:'released'})};
   throw Error('unexpected API');
  };
- await assert.rejects(runBatteryBackedTask({memberToken:token,taskType:'clock.preset.create',units:2,idempotencyKey:'preset:create:456',env:{STARRY_BATTERY_KEY:'mock-only'},fetchFn:wrongPrice,execute:async()=>{calls++;}}),/battery_price_mismatch/);
+ await assert.rejects(runBatteryBackedTask({memberToken:token,taskType:'clock.preset_create',units:2,idempotencyKey:'preset:create:456',env:{STARRY_BATTERY_KEY:'mock-only'},fetchFn:wrongPrice,execute:async()=>{calls++;}}),/battery_price_mismatch/);
  assert.equal(calls,1,'must not create a preset when central price is not X');
 });
