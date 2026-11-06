@@ -24,7 +24,7 @@ clock/
 └─ docs/                               # 串接、驗收與部署證據
 ```
 
-**注意：** `web-preview/cloudflare-worker.mjs` 是目前 Cloudflare Worker v1.1.1 部署原始碼，產生方式為 `python tools/build_worker.py`；其中包含完整 PWA 資源及嚴格 CSP 雜湊。`web-preview/index.html` 是原始 UI。雖已取得 Cloudflare 部署與路由證據，但由於當前環境限制，尚未由外部裝置完成 HTTPS 實際載入驗收。
+**注意：** `web-preview/cloudflare-worker.mjs` 是執行 `python tools/build_worker.py` 才產生的部署檔，已從 Git 追蹤移除，以避免上傳過期 Bundle。`web-preview/index.html` 是原始 UI。雖已取得 Cloudflare 部署與路由證據，但由於當前環境限制，尚未由外部裝置完成 HTTPS 實際載入驗收。
 
 ## 功能
 
@@ -59,7 +59,7 @@ npx eas-cli build --platform ios --profile preview
 
 - 中央服務 URL `https://id.starry.phd`；正式 OpenAPI 位於 `starry-phd/id/openapi/starry-id.v1.json`。
 - Clock 使用現有 `GET /v1/apps/clock/config` 作 App 登記狀態查詢；會員顯示使用 `GET /v1/me`（**必須有 Clock 官方登入取得的合法、未過期 Bearer Token 才能呼叫**）。
-- 目前既有中央 Registry `config/apps.json` 只有 `echo`、`account`，**沒有 `clock`**。本交付遵守「不可以變更中央會員的程式碼」，所以**沒有修改 Registry**，也就無法完成 Clock App 官方 OAuth 登入。原生 App 內已增加 `readAppConfig()` 的只讀 API 查詢與狀態顯示；未取得 Clock OAuth 憑證前不會偽裝會員登入。
+- Clock 已由業主在 Admin Lite 登記，PR #1 GitHub CI 驗證 GET /v1/apps/clock/config 為 active；無須修改 Starry ID config/apps.json。原生 App 已加入 Starry 中繼登入的新程式碼，但原生 IPA 尚須重新建置才能使用 clock:// 回傳。
 - 不存取／改動中央會員的 Auth、Session、D1、R2 或任何程式碼；沒有複製會員資料；不使用中央私密金鑰。離線倒數不需登入、不中斷。
 - 後續 Clock 取得 Starry ID 正式登記的唯一方式，是由會員領域 Owner 審核既有 Registry 的設定變更；此工作**尚未執行且與「完全不改中央會員程式碼」的限制相衝突**。不可繞過授權或偽造 Token。
 
@@ -92,3 +92,7 @@ python test/web-e2e.py  # 需本機已安裝 Playwright 與 Chromium
 ## 2026-11-05｜GitHub Public 政策
 
 Clock 儲存庫為 `https://github.com/starry-phd/clock`，所有新 GitHub 專案依使用者要求預設 Public；只有經使用者另行指定時才改為 Private。不得將密碼、API Token、簽章憑證、Service Account JSON 或個人資料提交至公開 Repo。根目錄 `package.json` 的 `private: true` 只是防止發佈至 npm registry，與 GitHub Repo 的 Public/Private 權限**無關**。
+
+## Starry ID 中繼整合（PR #1）
+
+網頁與原生 App 已加入 Starry ID 浏览器中繼方案；請參閱 [完整串接與驗收文件](docs/starry-id-integration.zh-TW.md)。GitHub 合併不代表 Cloudflare 正式網頁或 App Store 中既有 IPA 已更新。App 含新版 scheme clock，必須經過新版 EAS 建置、實機登入驗證與業主核准才可送審或正式發布。
