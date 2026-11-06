@@ -90,7 +90,7 @@ saveBusy=true;$('save').disabled=true;$('formError').textContent='';
 try{
  if(!editor&&presets.length>=3){
   const pricing=await clockReq('/v1/pricing');
-  const item=pricing.features.find(x=>x.feature==='clock.preset.create');
+  const item=pricing.features.find(x=>x.feature==='clock.preset_create');
   if(!item?.enabled||!item.available)throw Error('第 4 組起需消耗電池，但後端扣量服務尚未開通。現有倒數不受影響。');
   const proceed=confirm('新增此計時器將消耗 '+item.units+' 顆繁星電池。額度跨 Starry Apps 共用；只有新增成功才扣。確定新增嗎？');
   if(!proceed)return;
@@ -234,7 +234,7 @@ async function loadOwnerPrices(){
 async function showPublicPricing(){
  try{
   const config=await clockReq('/v1/pricing');
-  const item=config.features.find(x=>x.feature==='clock.preset.create');
+  const item=config.features.find(x=>x.feature==='clock.preset_create');
   $('presetPriceInfo').textContent='前 3 組免費；第 4 組起每新增 1 組'+(item?.available?'消耗 '+item.units+' 顆繁星電池。':'需確認 X 顆電池（目前尚未開放）。');
  }catch{$('presetPriceInfo').textContent='前 3 組免費；電池服務暫時無法連線，新增第 4 組暫停。'}
 }
