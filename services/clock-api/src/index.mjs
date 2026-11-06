@@ -52,7 +52,7 @@ export async function runBatteryBackedTask({memberToken,taskType='clock.ai',unit
   if(reservation.replayed)throw Error('battery_request_in_progress_or_replayed');
   if(!reservation.reservation_id||reservation.status!=='reserved'||reservation.task_type!==taskType)throw Error('reservation_failed');
   // Clock X means actual batteries charged. Central task rate must remain one per unit.
-  if(taskType==='clock.preset.create' && (reservation.units!==units||reservation.amount!==units)){
+  if(taskType==='clock.preset_create' && (reservation.units!==units||reservation.amount!==units)){
     try{await batteryFetch('/v1/battery/reservations/'+encodeURIComponent(reservation.reservation_id)+'/release',undefined,null,key,fetchFn);}catch{}
     throw Error('battery_price_mismatch');
   }
