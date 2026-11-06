@@ -179,7 +179,12 @@ function setMemberButtons(member){
 
 async function clockReq(path,method='GET',data,token){
  const headers={Accept:'application/json',...(data!==undefined?{'Content-Type':'application/json'}:{}),...(token?{Authorization:'Bearer '+token}:{})};
- const response=await fetch(CLOCK_BACKEND+path,{method,headers,body:data===undefined?undefined:JSON.stringify(data),credentials:'omit'});
+ let response;
+ try{
+  response=await fetch(CLOCK_BACKEND+path,{method,headers,body:data===undefined?undefined:JSON.stringify(data),credentials:'omit'});
+ }catch{
+  throw Error('無法連線到 Clock 電池服務，請檢查網路連線後再試。免費計時不受影響。');
+ }
  const payload=await response.json().catch(()=>({}));
  if(!response.ok)throw Error(payload.error?.message||'Clock API HTTP '+response.status);
  return payload;
