@@ -3,6 +3,7 @@ import {Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextI
 import {readAppConfig, readBattery, setConsent, updateProfile, deleteAccount, undoDeletion, StarryApiError} from '@clock/auth-contract';
 import type {RelayProvider, StarryMe} from '@clock/auth-contract';
 import {loadMember, startStarryRelay, signOut, signOutEverywhere, clearSession, withAccess} from './session';
+import {OwnerPricingPanel} from './OwnerPricingPanel';
 
 const api='https://id.starry.phd';
 const C={fg:'#F7FAFF',bg:'#0B1220',line:'#35445E',panel:'#17263B',muted:'#A7BAD1',mint:'#80F4D6',danger:'#FF8E95'};
@@ -100,6 +101,7 @@ export function StarryAccountPanel(){
         <Btn label="綁定 Google 登入方式" onPress={()=>{void action(async()=>{await startStarryRelay('google','link');});}}/>
         <Text style={s.info}>繁星電池艙 Starry Battery｜會員共用的消費用量月額度</Text>
         <Text style={s.info}>{battery||'尚未取得'}</Text>
+        <OwnerPricingPanel userId={me.user_id}/>
         <Text style={s.info}>月額度跨已授權 Starry Apps 共用，適用核准的 AI 與非 AI 服務；每月 1 日（台灣時間）恢復。此頁僅查詢，不會扣額。</Text>
       </View>:null}
       <Btn label="登出" onPress={()=>{void action(async()=>{await signOut();setMe(null);});}}/>
