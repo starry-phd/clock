@@ -157,6 +157,31 @@ export default function ClockScreen() {
     }catch(e){Alert.alert('無法儲存',(e as Error).message||'新增失敗，未完成扣量確認。');}
     finally{setSaving(false);}
   },[editor,presets,choose,cloudIds,saving]);
+  // Safe fallback when central Battery charging is unavailable:
+  // explicitly replace a selected existing preset; never create a fourth or charge.
+  const replaceFree=useCallback((target:ClockPreset)=>{
+    if(!editor||editor.id||saving||presets.length<3)return;
+    const name=editor.name.trim(),minutes=Number(editor.minutes),seconds=Number(editor.seconds);
+    if(!name||name.length>24||!Number.isInteger(minutes)||!Number.isInteger(seconds)||
+       minutes<0||minutes>1439||seconds<0||seconds>59||(minutes===0&&seconds===0)){
+      Alert.alert('請檢查設定','名稱 1～24 字，時間需介於 00:01 與 1439:59。');return;
+    }
+    const next={id:target.id,name,durationSeconds:minutes*60+seconds};
+    Alert.alert('免費取代計時器',
+      '確定以「'+name+'」取代「'+target.name+'」？不會增加第 4 組，也不會消耗任何電池。',
+      [{text:'取消',style:'cancel'},{text:'確定取代',onPress:()=>{
+        void (async()=>{
+          setSaving(true);
+          try{
+            if(cloudIds.includes(target.id))await editCloudPreset(next);
+            setPresets(old=>old.map(p=>p.id===target.id?next:p));
+            choose(next);setEditor(null);
+          }catch(e){Alert.alert('無法儲存',(e as Error).message||'既有用途未被修改');}
+          finally{setSaving(false);}
+        })();
+      }}]
+    );
+  },[editor,saving,presets.length,cloudIds,choose]);
   const remove=useCallback(async()=>{
     if(!editor?.id||presets.length===1||saving)return;
     setSaving(true);
@@ -210,12 +235,21 @@ export default function ClockScreen() {
 
     <Modal transparent visible={!!editor} animationType="fade" onRequestClose={()=>setEditor(null)}><KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS==='ios'?'padding':undefined}><View style={styles.modal}>
       <Text style={styles.modalTitle}>{editor?.id?'編輯用途':'新增用途'}</Text>
-      {!editor?.id&&<Text style={styles.note}>前 3 組免費。第 4 組起透過 Clock 正式網站 API 核對電池價格，經確認後才扣量；網路異常時不扣點。</Text>}
+      {!editor?.id&&<Text style={styles.note}>前 3 組免費。第 4 組起需先確認電池價格與扣量服務；服務暫停時，可在下方免費取代現有的一組用途。</Text>}
       <Text style={styles.fieldLabel}>名稱</Text>
       <TextInput value={editor?.name||''} onChangeText={name=>setEditor(e=>e?{...e,name}:e)} maxLength={24} placeholder="例如：休息時間" placeholderTextColor={COLORS.muted} style={styles.input}/>
       <Text style={styles.fieldLabel}>倒數長度</Text>
       <View style={{flexDirection:'row',gap:10,alignItems:'center'}}><TextInput value={editor?.minutes||''} onChangeText={minutes=>setEditor(e=>e?{...e,minutes}:e)} keyboardType="number-pad" style={[styles.input,{flex:1}]} /><Text style={styles.fieldLabel}>分</Text><TextInput value={editor?.seconds||''} onChangeText={seconds=>setEditor(e=>e?{...e,seconds}:e)} keyboardType="number-pad" style={[styles.input,{flex:1}]} /><Text style={styles.fieldLabel}>秒</Text></View>
       <View style={styles.modalButtons}><Button label="取消" onPress={()=>setEditor(null)}/><Button label={saving?'處理中…':'儲存'} primary disabled={saving} onPress={()=>{void saveEditor();}}/></View>
+      {!editor?.id&&presets.length>=3&&<View style={{gap:6,marginTop:12}}>
+        <Text style={styles.fieldLabel}>或免費取代既有用途（不新增、不扣電池）</Text>
+        <ScrollView style={{maxHeight:116}} nestedScrollEnabled>
+          {presets.map(p=><Pressable key={p.id} disabled={saving} accessibilityRole="button"
+             onPress={()=>replaceFree(p)} style={{paddingVertical:9,paddingHorizontal:10,marginVertical:3,borderWidth:1,borderColor:COLORS.muted,borderRadius:8}}>
+            <Text style={styles.note}>取代「{p.name}」｜{formatCountdown(p.durationSeconds)}</Text>
+          </Pressable>)}
+        </ScrollView>
+      </View>}
       {!!editor?.id&&presets.length>1&&<Pressable disabled={saving} onPress={()=>{void remove();}}><Text style={[styles.add,{color:COLORS.danger,textAlign:'center',marginTop:18}]}>刪除此用途</Text></Pressable>}
     </View></KeyboardAvoidingView></Modal>
 
