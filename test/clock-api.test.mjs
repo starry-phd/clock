@@ -37,3 +37,39 @@ describe('Clock API signature and Battery safety',()=>{
   assert.equal(called,false);
  });
 });
+
+
+it('accepts a separate non-AI task type and prevents undisclosed central price mismatches',async()=>{
+ const keypair=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']);
+ const jwk=await crypto.subtle.exportKey('jwk',keypair.publicKey);
+ Object.assign(jwk,{kid:'test-central',alg:'ES256'});
+ const header=b64({alg:'ES256',kid:'test-central',typ:'JWT'});
+ const claims=b64({iss:'starry-id:production',aud:'starry',app_id:'clock',sub:'member-test',exp:Math.floor(Date.now()/1000)+90});
+ const msg=header+'.'+claims;
+ const sig=await crypto.subtle.sign({name:'ECDSA',hash:'SHA-256'},keypair.privateKey,new TextEncoder().encode(msg));
+ const token=msg+'.'+Buffer.from(sig).toString('base64url');
+ const route='/v1/battery/reservations',seen=[];
+ const fakeFetch=async(url,options={})=>{
+   const path=new URL(url).pathname;
+   seen.push({path,body:options.body?JSON.parse(options.body):null});
+   if(path==='/.well-known/jwks.json')return {ok:true,json:async()=>({keys:[jwk]})};
+   if(path===route)return {ok:true,json:async()=>({reservation_id:'res-1',task_type:'clock.preset.create',status:'reserved',units:2,amount:2,replayed:false})};
+   if(path.endsWith('/commit')||path.endsWith('/release'))return {ok:true,json:async()=>({status:path.endsWith('/commit')?'committed':'released'})};
+   throw Error('unrecognized mock API: '+path);
+ };
+ let calls=0;
+ const result=await runBatteryBackedTask({memberToken:token,taskType:'clock.preset.create',units:2,idempotencyKey:'preset:create:123',env:{STARRY_BATTERY_KEY:'mock-only'},fetchFn:fakeFetch,execute:async()=>{calls++;return 'preset-created'}});
+ assert.equal(result,'preset-created');
+ assert.equal(calls,1);
+ assert.equal(seen.find(x=>x.path===route)?.body?.task_type,'clock.preset.create');
+ assert.equal(seen.filter(x=>x.path.endsWith('/commit')).length,1);
+ const wrongPrice=async(url,options={})=>{
+  const path=new URL(url).pathname;
+  if(path==='/.well-known/jwks.json')return {ok:true,json:async()=>({keys:[jwk]})};
+  if(path===route)return {ok:true,json:async()=>({reservation_id:'res-2',task_type:'clock.preset.create',status:'reserved',units:2,amount:4,replayed:false})};
+  if(path.endsWith('/release'))return {ok:true,json:async()=>({status:'released'})};
+  throw Error('unexpected API');
+ };
+ await assert.rejects(runBatteryBackedTask({memberToken:token,taskType:'clock.preset.create',units:2,idempotencyKey:'preset:create:456',env:{STARRY_BATTERY_KEY:'mock-only'},fetchFn:wrongPrice,execute:async()=>{calls++;}}),/battery_price_mismatch/);
+ assert.equal(calls,1,'must not create a preset when central price is not X');
+});
