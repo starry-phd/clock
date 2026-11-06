@@ -7,8 +7,8 @@ const files=async(...paths)=>Promise.all(paths.map(p=>readFile(new URL('../'+p,i
 const env={
  BATTERY_CHARGES_ENABLED:'false',
  DB:{prepare(sql){return{bind(...args){return{
-  first:async()=>({feature:'clock.preset.create',label:'第 4 組起新增計時器',units:2,enabled:0,version:1}),
-  all:async()=>({results:[{feature:'clock.preset.create',label:'新增第 4 組',units:2,enabled:0,version:1}]}),
+  first:async()=>({feature:'clock.preset_create',label:'第 4 組起新增計時器',units:2,enabled:0,version:1}),
+  all:async()=>({results:[{feature:'clock.preset_create',label:'新增第 4 組',units:2,enabled:0,version:1}]}),
   run:async()=>({meta:{changes:0}})
  }}}}}
 };
