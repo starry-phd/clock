@@ -44,14 +44,14 @@
 | 倒數計時／大字時鐘／自訂預設 | 既有 | 既有 | 已存在，但實作分開 |
 | Starry ID Google／Apple 中繼登入 | 已寫程式 | 已正式部署 | Expo 新版 EAS 建置因缺 `EXPO_TOKEN` 尚未上線 |
 | Battery 本月餘額／剩餘額度 | 本次補文字及格式 | 本次補讀取與文字 | 不收費，僅本人可見 |
-| 前 3 組免費、超過新增扣 X | 規則已定、後端未啟用 | 同左 | 由專責 PR 完成實際扣量後**兩端一起上線** |
-| Owner 專屬費率設定頁 | 待 Clock API 權限及儲存實作 | 同左 | 未開放一般會員，不能只有前端 UI |
+| 前 3 組免費、超過新增扣 X | Web／Expo 已接安全後端，扣量開關仍 OFF | 同左 | 由專責 PR 完成實際扣量後**兩端一起上線** |
+| Owner 專屬費率設定頁 | Owner JWT／D1 已實作，尚待 Owner Secret | 同左 | 非 Owner 會被後端拒絕；目前未配置 Owner Secret，仍保持不可用 |
 | AI 流程編排等進階功能 | 未實作 | 未實作 | 每項需同時開發與獨立任務代碼 |
 | 全螢幕呈現 | 系統隱藏 StatusBar；尚無一致的操作按鈕 | 既有全螢幕／劇院模式 | 既有差距，需獨立補足，不宣稱已完全一致 |
 
 ### 發布與回退
 
-- 任何新消耗功能先在 Cloudflare staging + Expo 測試建置驗收，確保兩端功能等價，再以同一個 release ID 發布；Web 或 Expo 任一端未就緒時，後端消費功能保持 OFF。
+- 任何新消耗功能先在 Cloudflare staging + Expo 測試建置驗收，確保兩端功能等價，再以同一個 release ID 發布；Web 已正式部署，Expo 原生商店建置仍受缺少 EXPO_TOKEN 阻擋；後端計費保持 OFF，待兩平台及真實中央任務驗收後才可啟用。
 - 正式部署只代表該平台已更新，不代表另一平台 App Store／Play 已上線。
 - 刪帳、停權或 Starry ID 不可達時停用 Battery 操作，不影響本機離線計時；所有扣額事件需有可對帳紀錄。
 
@@ -60,3 +60,8 @@
 - [2026-11-07 已更新的 DEV-A Google Docs](https://docs.google.com/document/d/1OdQREti12tzUBxZwgZ89WjUYdb-dCEnIEJ-AlpULky8/edit)：正式名稱、月額度、非 AI 用途、預留／提交／釋放安全規則。
 - [Starry ID GitHub 串接說明](https://github.com/starry-phd/id/blob/main/docs/integration-guide.md)：現行 API 流程、驗證與 Secret 規格，部分敘述仍為舊詞。
 - [Starry ID OpenAPI 3.1](https://github.com/starry-phd/id/blob/main/openapi/starry-id.v1.json)：請求／回應欄位來源，不能自創不相容 API。
+
+## 2026-11-07 實際部署補充
+- Clock Web UI／Clock API staging 與正式環境皆已部署，兩組獨立 D1。後端未設 Secret／Owner 白名單，扣量開關 OFF，並非已啟用計費。
+- Expo UI 已在 GitHub 和 Web 同步實作、CI 驗收，但沒有新的 iOS/Android Store 安裝包，因此兩個正式平台**尚不同步發布**。
+- 營運啟用與測試請遵循 [Cloudflare / Owner 操作交接](clock-battery-activation.md)。
