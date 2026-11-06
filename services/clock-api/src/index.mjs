@@ -40,7 +40,7 @@ async function batteryFetch(path,body,token,key,fetchFn){
 // This helper is not connected to any route until owner approves an AI product and service costs.
 export async function runBatteryBackedTask({memberToken,taskType='clock.ai',units,idempotencyKey,execute,env,fetchFn=fetch}){
   if(!env?.STARRY_BATTERY_KEY)throw Error('battery_key_missing');
-  if(!/^clock\.[a-z][a-z0-9.]{1,56}$/.test(taskType))throw Error('invalid_task_type');
+  if(!/^clock\.[a-z][a-z0-9_-]{1,31}$/.test(taskType))throw Error('invalid_task_type');
   if(!Number.isInteger(units)||units<1||units>30)throw Error('invalid_units');
   if(typeof idempotencyKey!=='string'||idempotencyKey.length<8||idempotencyKey.length>128)throw Error('invalid_idempotency');
   if(typeof execute!=='function')throw Error('ai_executor_missing');
