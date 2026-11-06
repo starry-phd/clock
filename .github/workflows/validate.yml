@@ -38,6 +38,7 @@ jobs:
       - run: node --test packages/clock-core/test/clock.test.mjs
       - run: node --test test/worker-smoke.mjs
       - run: node --test test/starry-relay.test.mjs
+      - run: node --test test/clock-api.test.mjs
       - run: python3 tools/preflight.py --checks static
       - run: pnpm --dir apps/clock exec tsc --noEmit
   registry:
