@@ -283,7 +283,7 @@ async function showPublicPricing(){
  try{
   const config=await clockReq('/v1/pricing');
   const item=config.features.find(x=>x.feature==='clock.preset_create');
-  $('presetPriceInfo').textContent='前 3 組免費；第 4 組起每新增 1 組'+(item?.available?'消耗 '+item.units+' 顆繁星電池。':'需確認 X 顆電池（目前尚未開放）。');
+  $('presetPriceInfo').textContent='前 3 組免費；第 4 組起每新增 1 組'+(item?.available?'消耗 '+item.units+' 顆繁星電池。':'需電池（目前尚未開放）；可在新增視窗免費取代現有用途。');
  }catch{$('presetPriceInfo').textContent='前 3 組免費；電池服務暫時無法連線，新增第 4 組暫停。'}
 }
 
