@@ -11,14 +11,14 @@
 - Expo iOS／Android 同一 PR 已同步開發及 CI 驗證，**但尚未上傳新版 IPA／AAB**：GitHub EAS 工作因缺少 `EXPO_TOKEN` 失敗。
 - 提供 Clock Owner 專屬的定價管理頁（在設定 → Starry ID 會員區塊下），由 Clock API 後端以 Starry JWT + `CLOCK_OWNER_USER_IDS` 再次驗證；非 Owner 會 403。
 - 本月 Battery 額度顯示於 App 與 Web；每位會員獨立，跨已授權 Starry Apps 共用；AI 與非 AI 皆可核准消耗。免費額度不可買賣／轉讓。
-- 所有預設定價已寫入 D1，`clock.preset.create` 初始建議 X=2 顆，**`enabled=0`**。正式與 staging Worker 設有 `BATTERY_CHARGES_ENABLED=false`，絕不會在本次上線自動扣量。
+- 所有預設定價已寫入 D1，`clock.preset_create` 初始建議 X=2 顆，**`enabled=0`**。正式與 staging Worker 設有 `BATTERY_CHARGES_ENABLED=false`，絕不會在本次上線自動扣量。
 
 ## 必須完成才可以啟用真正扣 X 顆
 
-1. 用現有 Owner 身分登入 [Starry ID Admin Lite Battery](https://id.starry.phd/admin/battery)，新增或確認獨立非 AI 任務 `clock.preset.create`，屬 App `clock`，**每單位消耗 1 顆**，單次上限至少 X（若 X 可設定到 30，中央單次上限設為 30）。不能拿 `clock.ai` 冒充非 AI 功能。
+1. 用現有 Owner 身分登入 [Starry ID Admin Lite Battery](https://id.starry.phd/admin/battery)，新增或確認獨立非 AI 任務 `clock.preset_create`，屬 App `clock`，**每單位消耗 1 顆**，單次上限至少 X（若 X 可設定到 30，中央單次上限設為 30）。不能拿 `clock.ai` 冒充非 AI 功能。
 2. 在 Starry ID Admin Lite 的 App 管理重新產生／取得 Clock 專用 Battery Service Key；只在 Cloudflare Workers 的 **clock-api** Secret 設 `STARRY_BATTERY_KEY`，並為 **clock-api-staging** 設定 staging 可用的對應金鑰；金鑰不要貼在聊天室、GitHub、App 或日志。現有 `clock` Web Worker 雖有同名 Secret，但 Cloudflare 不支援讀取原值並自動複製；`clock-api` 尚未設定。
 3. 在 Clock API Worker Secrets 設 `CLOCK_OWNER_USER_IDS`，值為你在 Starry ID 的精確 `user_id`（若多位 Owner，以逗號分隔）。**這不是密碼**，但是授權白名單，務必只在 Worker Secret 設定。staging 與正式環境都需設定。不得用 Email 或姓名作 Owner 認證。
-4. 登入 Clock → 設定 → Starry ID → 超級管理員，在 `clock.preset.create` 輸入 X（0～30）並選擇啟用，按「儲存」；後端會留稽核紀錄。
+4. 登入 Clock → 設定 → Starry ID → 超級管理員，在 `clock.preset_create` 輸入 X（0～30）並選擇啟用，按「儲存」；後端會留稽核紀錄。
 5. 先只對 staging 設定 `BATTERY_CHARGES_ENABLED=true`，使用**明確同意扣電池的測試會員**完成第 4 組新增，驗證預留／成功 commit、餘額與帳本、取消／失敗 release、重送同一 request_id 不重扣、不同會員資料隔離、Owner／非 Owner 403。
 6. staging 通過並確認前端／原生版本對應後，再將 production `clock-api` 變更 `BATTERY_CHARGES_ENABLED=true`。請確認當次 CI 全綠並記錄雲端版本／回滾方法。單獨改前端不應開啟扣量。
 7. Expo 新版上傳須先至 [GitHub Secrets](https://github.com/starry-phd/clock/settings/secrets/actions) 設定 `EXPO_TOKEN`。目前缺少它，手機商店尚未更新；**不可宣稱已完成 Expo 正式上線**。
