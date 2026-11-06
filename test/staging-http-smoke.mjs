@@ -52,6 +52,14 @@ if(process.env.GITHUB_REF==='refs/heads/main'){
  assert.equal(liveBody,body,'production HTML must match tested staging HTML');
 }
 if(process.env.GITHUB_REF==='refs/heads/main')assert.equal(liveRoot.headers.get('content-security-policy'),csp,'CSP parity');
+const livePriceResponse=await fetch(liveBase+'/api/clock/v1/pricing',{signal:AbortSignal.timeout(18000)});
+assert.equal(livePriceResponse.status,200,'production same-origin Battery API unavailable');
+const livePricing=await livePriceResponse.json();
+assert.equal(livePricing.free_presets,3);
+assert.equal(livePricing.features.find(x=>x.feature==='clock.preset.create')?.available,false,'unexpected production Battery charges');
+const liveAnonymousMember=await fetch(liveBase+'/api/clock/v1/presets',{signal:AbortSignal.timeout(18000)});
+assert.equal(liveAnonymousMember.status,401,'member data must require a Starry token');
+console.log('CLOCK_PRODUCTION_BATTERY_GATEWAY_PASS',JSON.stringify({sameOrigin:true,pricing:true,authRequired:true,charges:false}));
 const liveCallback=await fetch(liveBase+'/auth/done',{signal:AbortSignal.timeout(18000)});
 assert.equal(liveCallback.status,200);
 assert.equal(liveCallback.headers.get('cache-control'),'no-store');
