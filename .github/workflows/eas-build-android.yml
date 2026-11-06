@@ -23,7 +23,7 @@ jobs:
         with:
           version: '10.18.0'
       - name: Install app dependencies
-        run: pnpm install --frozen-lockfile=false
+        run: pnpm install --frozen-lockfile
       - name: Check release inputs
         run: python3 tools/preflight.py --checks eas
       - name: Verify type safety
