@@ -1,5 +1,5 @@
 import {withAccess} from './session';
-export const CLOCK_API='https://clock-api.starry-phd.workers.dev';
+export const CLOCK_API='https://clock.starry.phd/api/clock';
 export type ClockPrice={feature:string;label:string;units:number;enabled:boolean;available:boolean;version:number};
 export type CloudPreset={id:string;name:string;durationSeconds:number;paidUnits?:number};
 type BackendError={error?:{code?:string;message?:string}};
