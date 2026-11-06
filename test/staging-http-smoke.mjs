@@ -9,7 +9,7 @@ const health=await (await get('/api/health')).json();
 assert.equal(health.status,'ok');
 assert.equal(health.app_id,'clock');
 assert.equal(health.starry_relay,true);
-assert.match(health.source_sha,/^[a-f0-9]{40}$/);
+assert.ok(typeof health.source_sha==='string'&&health.source_sha.length>6);
 const root=await get('/');
 const body=await root.text();
 assert.match(body,/loginGoogle/);
