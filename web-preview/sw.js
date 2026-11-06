@@ -1,5 +1,5 @@
 // Network-first HTML ensures member login updates are not stuck in an old PWA cache.
-const CACHE='clock-web-v1-4-battery-gateway';
+const CACHE='clock-web-v1-5-battery-task';
 self.addEventListener('install', event=>event.waitUntil(
   caches.open(CACHE).then(cache=>cache.addAll(['/','/manifest.webmanifest'])).then(()=>self.skipWaiting())
 ));
