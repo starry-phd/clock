@@ -19,3 +19,8 @@ service-account*.json
 play-service-account*.json
 *.log
 .DS_Store
+
+# Regenerated on every PWA test/deploy from public source
+web-preview/cloudflare-worker.mjs
+# Generated from OpenAPI 3.1 on install
+packages/auth-client-contract/src/generated/
