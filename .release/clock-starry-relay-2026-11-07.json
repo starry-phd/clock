@@ -1,0 +1,19 @@
+{
+  "release": "starry-id-relay-native",
+  "date": "2026-11-07",
+  "scope": [
+    "ios-ipa-eas-build-and-testflight-upload",
+    "android-aab-eas-build"
+  ],
+  "authorization": "user approved deployment and store submission in this conversation",
+  "github_repository": "starry-phd/clock",
+  "expo_project": "@starryphd/clock",
+  "native_deep_links": [
+    "clock://auth/apple",
+    "clock://auth/google"
+  ],
+  "requires_secret": "EXPO_TOKEN",
+  "ios_store_review": "manual_review_submission_after_build_processing",
+  "android_store_submit": "not configured_without_play_credentials",
+  "release_repeatable": false
+}
