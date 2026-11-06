@@ -133,7 +133,7 @@ export default function ClockScreen() {
     setSaving(true);
     try{
       if(!editor.id&&presets.length>=3){
-        const p=(await loadClockPricing()).features.find(x=>x.feature==='clock.preset.create');
+        const p=(await loadClockPricing()).features.find(x=>x.feature==='clock.preset_create');
         if(!p||!p.enabled||!p.available){Alert.alert('尚未開放','新增第 4 組起需消耗繁星電池，後端服務尚未開放。現有計時不受影響。');return;}
         const accepted=await new Promise<boolean>(resolve=>Alert.alert(
           '確認消耗繁星電池',

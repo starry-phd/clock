@@ -29,5 +29,5 @@ test('both platforms show the same authorized member balance fields without clie
  assert.doesNotMatch(native,/x-starry-app-key|STARRY_BATTERY_KEY/);
  assert.doesNotMatch(web,/x-starry-app-key|STARRY_BATTERY_KEY/);
  assert.ok(backend.includes("taskType='clock.ai'"));
- assert.ok(backend.includes("clock.preset.create"),'non-AI task type must be handled distinctly');
+ assert.ok(backend.includes("clock.preset_create"),'non-AI task type must be handled distinctly');
 });

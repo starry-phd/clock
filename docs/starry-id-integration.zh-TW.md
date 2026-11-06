@@ -41,7 +41,7 @@
 
 正式名稱：**繁星電池艙 Starry Battery**。正式定義：**會員共用的消費用量月額度**，不限 AI 任務。每位會員各有獨立月額度，同一會員在已授權 Starry Apps 共用；每月 1 日台灣時間重置，不累積，不能購買／轉讓／透支。
 
-- 任務類型可涵蓋經核准的 AI 與非 AI 功能，不能使用 `clock.ai` 代扣非 AI 服務。計時器第 4 組起預計使用獨立任務類型 `clock.preset.create`，前 3 組免費，之後每組 X 顆，由 Owner 設定。**收費端點目前尚未啟用**。
+- 任務類型可涵蓋經核准的 AI 與非 AI 功能，不能使用 `clock.ai` 代扣非 AI 服務。計時器第 4 組起預計使用獨立任務類型 `clock.preset_create`，前 3 組免費，之後每組 X 顆，由 Owner 設定。**收費端點目前尚未啟用**。
 - 只有 Clock API 後端能使用 Secret `STARRY_BATTERY_KEY`，驗證中央 Access Token、`user_id` 及 `app_id=clock`；預留 → 成功 commit，失敗／取消／逾時 release，冪等避免重扣；中央不可達時不啟動收費服務。
 - Clock API 需檢查中央實際返回的 `amount` 與畫面明示的 X 一致；金鑰不得進 App／Web／Git／日誌，不修改 Starry ID 資料庫。
 - 兩端同步：Expo iOS／Android 與 Web／PWA **所有新開發功能必須同 PR 更新**；詳細定義與驗收表見 [Battery v2／平台同步矩陣](battery-v2-platform-parity.md)。

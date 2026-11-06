@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS clock_requests(
  PRIMARY KEY(user_id,request_id)
 );
 INSERT OR IGNORE INTO clock_pricing(feature,label,units,enabled) VALUES
- ('clock.preset.create','第 4 組起新增計時器',2,0),
+ ('clock.preset_create','第 4 組起新增計時器',2,0),
  ('clock.ai.schedule','AI 智慧活動流程編排',5,0),
  ('clock.ai.voice','AI 語音提醒',3,0),
  ('clock.ai.summary','AI 計時分析',4,0),

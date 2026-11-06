@@ -40,7 +40,7 @@ async function batteryFetch(path,body,token,key,fetchFn){
 // This helper is not connected to any route until owner approves an AI product and service costs.
 export async function runBatteryBackedTask({memberToken,taskType='clock.ai',units,idempotencyKey,execute,env,fetchFn=fetch}){
   if(!env?.STARRY_BATTERY_KEY)throw Error('battery_key_missing');
-  if(!/^clock\.[a-z][a-z0-9.]{1,56}$/.test(taskType))throw Error('invalid_task_type');
+  if(!/^clock\.[a-z][a-z0-9_-]{1,31}$/.test(taskType))throw Error('invalid_task_type');
   if(!Number.isInteger(units)||units<1||units>30)throw Error('invalid_units');
   if(typeof idempotencyKey!=='string'||idempotencyKey.length<8||idempotencyKey.length>128)throw Error('invalid_idempotency');
   if(typeof execute!=='function')throw Error('ai_executor_missing');
@@ -52,7 +52,7 @@ export async function runBatteryBackedTask({memberToken,taskType='clock.ai',unit
   if(reservation.replayed)throw Error('battery_request_in_progress_or_replayed');
   if(!reservation.reservation_id||reservation.status!=='reserved'||reservation.task_type!==taskType)throw Error('reservation_failed');
   // Clock X means actual batteries charged. Central task rate must remain one per unit.
-  if(taskType==='clock.preset.create' && (reservation.units!==units||reservation.amount!==units)){
+  if(taskType==='clock.preset_create' && (reservation.units!==units||reservation.amount!==units)){
     try{await batteryFetch('/v1/battery/reservations/'+encodeURIComponent(reservation.reservation_id)+'/release',undefined,null,key,fetchFn);}catch{}
     throw Error('battery_price_mismatch');
   }

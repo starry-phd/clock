@@ -5,7 +5,7 @@
  */
 const ORIGINS=new Set(['https://clock.starry.phd','https://clock-staging.starry-phd.workers.dev']);
 const MAX_EXTRAS=47;
-const TASK='clock.preset.create';
+const TASK='clock.preset_create';
 const LIMIT=30;
 const timerName=n=>typeof n==='string'&&n.trim().length>0&&n.trim().length<=24;
 const idValid=s=>typeof s==='string'&&/^[A-Za-z0-9_-]{8,80}$/.test(s);

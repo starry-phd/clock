@@ -29,7 +29,7 @@
 
 ### 後端尚需驗收的事實
 
-- 非 AI 類型應獨立為 `clock.preset.create`，**不得假冒 `clock.ai`**。
+- 非 AI 類型應獨立為 `clock.preset_create`，**不得假冒 `clock.ai`**。
 - 中央 Starry Battery 任務單位耗量與 Clock 後台 X 必須一致，例如中央「每單位消耗 1」，Clock 依 X 傳入 units；若實際返回 `amount` 不是使用者確認的 X，**立即取消或釋放，不執行新增**。
 - Clock API 必須擁有統一的每位會員預設資料與冪等紀錄，不能因「Web 瀏覽器」或「原生手機」各自本機存檔而重複享有前 3 組。
 - Owner 身分不可只靠前端隱藏按鈕；需使用受保護的後端 Owner 授權名單與 Starry JWT 認證，再加審計記錄，更新 X 只能經後端。
