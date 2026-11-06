@@ -88,7 +88,7 @@ const refreshingKey='clock:starry:refresh:v1',pendingKey='clock:starry:pending:v
 const qs=(obj)=>JSON.stringify(obj);
 function alertAccount(message){$('accountError').textContent=String(message||'無法完成操作').slice(0,200)}
 async function starryReq(path,options={},access=null){
- const headers={'Accept':'application/json',...(options.body?{'Content-Type':'application/json'}:{}),...(access?{'Authorization':'Bearer '+access}:{})};
+ const headers={'Accept':'application/json',...(options.body?{'Content-Type':'application/json'}:{}),...(options.headers||{}),...(access?{'Authorization':'Bearer '+access}:{})};
  const r=await fetch(STAR+path,{...options,headers,credentials:'omit'});
  if(!r.ok){const data=await r.json().catch(()=>({}));const error=new Error(data?.error?.message||'中央會員 HTTP '+r.status);error.code=data?.error?.code||'HTTP_'+r.status;error.status=r.status;throw error}
  return r.status===204?null:r.json();
