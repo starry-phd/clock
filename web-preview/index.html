@@ -31,7 +31,7 @@ body.fullscreen #app{max-width:none}body.theater header,body.theater .mode-toggl
 <button id="exitTheater" aria-label="離開全螢幕" type="button">離開全螢幕</button>
 <div class="dialog-backdrop hidden" id="overlay" role="presentation"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
 <h2 id="dialogTitle">新增用途</h2><div id="presetForm"><label class="label" for="presetName">用途名稱</label><input class="textinput" id="presetName" maxlength="24" placeholder="例如：休息時間"><span class="label">倒數時間</span><div class="time-fields"><input id="minutes" class="textinput" type="number" min="0" max="1439" inputmode="numeric" value="5" aria-label="分鐘"><span>分</span><input id="seconds" class="textinput" type="number" min="0" max="59" inputmode="numeric" value="0" aria-label="秒"><span>秒</span></div><p class="note">每一種用途可設定固定倒數長度，選取後即可開始。</p></div>
-<div id="settingsForm" class="hidden"><label class="label" for="lead">結束前幾秒響鈴（0～120）</label><input id="lead" class="textinput" inputmode="numeric" type="number" min="0" max="120" value="10"><p class="note">提前提醒只響一次；歸零時會再響鈴。設定 0 代表只在歸零響鈴。</p><div class="switch"><span>提示音效</span><button id="soundToggle">開啟</button></div><div class="identity"><strong>Starry ID 中央會員</strong><p id="memberStatus">正在檢查中央登記…</p><p id="accountUser">未登入</p><p id="accountError" role="alert" style="color:var(--red)"></p><div id="accountButtons" style="display:grid;gap:9px">
+<div id="settingsForm" class="hidden"><label class="label" for="lead">結束前幾秒響鈴（0～120）</label><input id="lead" class="textinput" inputmode="numeric" type="number" min="0" max="120" value="10"><p class="note">提前提醒只響一次；歸零時會再響鈴。設定 0 代表只在歸零響鈴。</p><div class="switch"><span>提示音效</span><button id="soundToggle">開啟</button></div><div class="identity"><strong>Starry ID 中央會員</strong><p id="memberStatus">正在檢查中央登記…</p><p id="accountUser">未登入</p><div id="batteryPanel" class="hidden" aria-live="polite"><strong>繁星電池艙 Starry Battery｜會員共用的消費用量月額度</strong><p id="batteryBalance">查詢中…</p><p class="note">與已授權的 Starry Apps 共用，適用核准的 AI 與非 AI 服務；每月 1 日（台灣時間）恢復。本頁只查詢，不扣額。</p></div><p id="accountError" role="alert" style="color:var(--red)"></p><div id="accountButtons" style="display:grid;gap:9px">
 <button type="button" id="loginGoogle" class="icon-btn">使用 Google 登入 Starry</button>
 <button type="button" id="loginApple" class="icon-btn">使用 Apple 登入 Starry</button>
 <button type="button" id="consent" class="icon-btn hidden">閱讀並同意最新條款</button>
@@ -128,8 +128,22 @@ function setMemberButtons(member){
  $('undoDelete').classList.toggle('hidden',member?.status!=='pending_deletion');
  $('accountUser').textContent=member?(member.profile?.display_name||'繁星會員')+' · '+member.user_id:'未登入（倒數仍可使用）';
 }
-async function loadMemberWebUI(){setMemberButtons(await loadWebMember())}
-function logoutWebLocal(){webAccess=null;webMember=null;sessionStorage.removeItem(refreshingKey);sessionStorage.removeItem(pendingKey);setMemberButtons(null)}
+async function loadMemberWebUI(){
+ const member=await loadWebMember();
+ setMemberButtons(member);
+ const panel=$('batteryPanel');
+ panel.classList.toggle('hidden',!member||member.status==='pending_deletion'||member.consent?.required);
+ if(!member||member.status==='pending_deletion'||member.consent?.required)return;
+ $('batteryBalance').textContent='查詢中…';
+ try {
+   const result=await webAuthorized(t=>starryReq('/v1/me/battery',{},t));
+   const bal=result.balance;
+   $('batteryBalance').textContent='本月 '+bal.period+'｜額度 '+bal.allowance+' 顆｜已用 '+bal.used+' 顆｜預留 '+bal.reserved+' 顆｜剩餘 '+bal.remaining+' 顆';
+ }catch{
+   $('batteryBalance').textContent='額度暫時無法讀取，不影響免費倒數計時。';
+ }
+}
+function logoutWebLocal(){webAccess=null;webMember=null;sessionStorage.removeItem(refreshingKey);sessionStorage.removeItem(pendingKey);setMemberButtons(null);$('batteryPanel').classList.add('hidden');$('batteryBalance').textContent='';}
 function bytesHex(bytes){return Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('')}
 async function relayWeb(provider,operation='login'){
  $('accountError').textContent='';
