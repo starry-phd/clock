@@ -33,3 +33,5 @@ test('health is public and non-membership routes do not impersonate Starry ID',a
   assert.equal(data.status,'ok');assert.equal(data.app_id,'clock');assert.equal(data.version,'1.1.1');
   const missing=await get('/this-does-not-exist');assert.equal(missing.status,404);
 });
+
+await import('./staging-http-smoke.mjs');
