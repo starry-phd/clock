@@ -210,7 +210,7 @@ export default function ClockScreen() {
 
     <Modal transparent visible={!!editor} animationType="fade" onRequestClose={()=>setEditor(null)}><KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS==='ios'?'padding':undefined}><View style={styles.modal}>
       <Text style={styles.modalTitle}>{editor?.id?'編輯用途':'新增用途'}</Text>
-      {!editor?.id&&<Text style={styles.note}>前 3 組免費。第 4 組起依繁星電池艙顯示實際 X 顆，經確認後才扣量。</Text>}
+      {!editor?.id&&<Text style={styles.note}>前 3 組免費。第 4 組起透過 Clock 正式網站 API 核對電池價格，經確認後才扣量；網路異常時不扣點。</Text>}
       <Text style={styles.fieldLabel}>名稱</Text>
       <TextInput value={editor?.name||''} onChangeText={name=>setEditor(e=>e?{...e,name}:e)} maxLength={24} placeholder="例如：休息時間" placeholderTextColor={COLORS.muted} style={styles.input}/>
       <Text style={styles.fieldLabel}>倒數長度</Text>

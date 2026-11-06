@@ -7,7 +7,7 @@ b64=base64.b64encode(gzip.compress(raw,compresslevel=9,mtime=0)).decode()
 style=assets['/'].split('<style>',1)[1].split('</style>',1)[0]
 script=assets['/'].split('<script>',1)[1].split('</script>',1)[0]
 sha=lambda x:base64.b64encode(hashlib.sha256(x.encode()).digest()).decode()
-csp="default-src 'none'; script-src 'sha256-"+sha(script)+"'; style-src 'sha256-"+sha(style)+"'; connect-src 'self' https://id.starry.phd https://clock-api.starry-phd.workers.dev https://clock-api-staging.starry-phd.workers.dev; worker-src 'self'; img-src 'self' data:; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+csp="default-src 'none'; script-src 'sha256-"+sha(script)+"'; style-src 'sha256-"+sha(style)+"'; connect-src 'self' https://id.starry.phd; worker-src 'self'; img-src 'self' data:; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 source='''// CLOCK v1.1, standalone Starry Cloudflare Worker. Does not touch Starry ID code.
 const BUNDLE = __BUNDLE__;
 let assetsPromise;
@@ -20,8 +20,21 @@ async function getAssets(){
   return assetsPromise;
 }
 const CSP=__CSP__;
-export default { async fetch(request){
+export default { async fetch(request, env){
   const path=new URL(request.url).pathname;
+  // Same-origin internal Worker service binding avoids third-party workers.dev calls.
+  // No API service secret or central Battery key ever reaches the browser.
+  if (path.startsWith('/api/clock/')) {
+    if (!env?.CLOCK_API || typeof env.CLOCK_API.fetch !== 'function')
+      return Response.json({error:{code:'CLOCK_BACKEND_UNAVAILABLE',message:'Clock 電池服務尚未連線，請稍後再試。'}},{status:503,headers:{'Cache-Control':'no-store'}});
+    const target=new URL(request.url);
+    target.pathname=path.slice('/api/clock'.length);
+    try {
+      return await env.CLOCK_API.fetch(new Request(target.toString(),request));
+    } catch {
+      return Response.json({error:{code:'CLOCK_BACKEND_UNAVAILABLE',message:'Clock 電池服務暫時無法連線，請稍後再試。'}},{status:503,headers:{'Cache-Control':'no-store'}});
+    }
+  }
   if (path==='/api/health') return Response.json({status:'ok',service:'clock',brand_id:'starry',app_id:'clock',version:'1.1.1'},{headers:{'Cache-Control':'no-store'}});
   if (path==='/api/starry/status') {
     try {
