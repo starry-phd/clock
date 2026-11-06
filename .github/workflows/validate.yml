@@ -43,6 +43,7 @@ jobs:
       - run: node --test test/starry-relay.test.mjs
       - run: node --test test/clock-api.test.mjs
       - run: node --test test/platform-parity.test.mjs
+      - run: node --test test/clock-battery-feature.test.mjs
       - run: python3 tools/check_platform_parity.py
       - run: python3 tools/preflight.py --checks static
       - run: pnpm --dir apps/clock exec tsc --noEmit
