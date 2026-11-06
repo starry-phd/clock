@@ -33,7 +33,7 @@ const done=await get('/auth/done');
 assert.match((await done.text()),/loginGoogle/);
 assert.equal(done.headers.get('cache-control'),'no-store');
 assert.equal(done.headers.get('referrer-policy'),'no-referrer');
-assert.match(await (await get('/sw.js')).text(),/clock-web-v1-4-battery-gateway/);
+assert.match(await (await get('/sw.js')).text(),/clock-web-v1-5-battery-task/);
 const registry=await (await get('/api/starry/status')).json();
 assert.equal(registry.app,'active');
 console.log('CLOCK_STAGING_SMOKE_PASS',JSON.stringify({sha:health.source_sha,relay:true,registry:registry.app,callback:'no-store',csp:true}));
