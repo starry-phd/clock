@@ -58,3 +58,20 @@ test('Expo and Web both implement explicit paid preset charge and Owner dashboar
  const script=web.split('<script>')[1].split('</script>')[0];
  assert.doesNotThrow(()=>new Script(script),'Web inline JavaScript must compile');
 });
+
+
+test('battery outage: native and web explicitly replace an existing preset for free without appending or charging',async()=>{
+ const [native,web]=await files('apps/clock/app/index.tsx','web-preview/index.html');
+ assert.match(web,/id="freeReplacePanel"/);
+ assert.match(web,/id="freeReplaceTarget"/);
+ assert.match(web,/id="freeReplaceSave"/);
+ assert.match(web,/async function replaceFree\(\)/);
+ assert.match(web,/presets=presets\.map\(p=>p\.id===target\.id\?updated:p\)/);
+ assert.match(web,/if\(cloudPresetIds\.has\(target\.id\)\)/);
+ assert.match(web,/不會增加計時器數量，也不會消耗任何繁星電池/);
+ assert.match(native,/const replaceFree=useCallback/);
+ assert.match(native,/setPresets\(old=>old\.map\(p=>p\.id===target\.id\?next:p\)\)/);
+ assert.match(native,/if\(cloudIds\.includes\(target\.id\)\)await editCloudPreset\(next\)/);
+ assert.match(native,/免費取代既有用途（不新增、不扣電池）/);
+ assert.match(native,/不會增加第 4 組，也不會消耗任何電池/);
+});
