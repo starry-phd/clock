@@ -30,7 +30,7 @@ export function StarryAccountPanel(){
    try{
     const value=await withAccess(token=>readBattery(token));
     const bal=value.balance;
-    setBattery(JSON.stringify(bal)); // informational only; never charge Battery in App
+    setBattery(`本月 ${bal.period}｜額度 ${bal.allowance} 顆｜已用 ${bal.used} 顆｜預留 ${bal.reserved} 顆｜剩餘 ${bal.remaining} 顆`); // read-only; member-owned quota
    }catch{setBattery('額度暫時無法讀取');}
   }else setBattery('');
  },[]);
@@ -98,8 +98,9 @@ export function StarryAccountPanel(){
         <Text style={s.info}>其他登入方式與頭像可從 Starry ID 帳號中心管理，不會在 Clock 建立獨立會員資料。</Text>
         <Btn label="綁定 Apple 登入方式" onPress={()=>{void action(async()=>{await startStarryRelay('apple','link');});}}/>
         <Btn label="綁定 Google 登入方式" onPress={()=>{void action(async()=>{await startStarryRelay('google','link');});}}/>
-        <Text style={s.info}>Starry Battery 月額度（僅顯示，不會扣額）</Text>
+        <Text style={s.info}>繁星電池艙 Starry Battery｜會員共用的消費用量月額度</Text>
         <Text style={s.info}>{battery||'尚未取得'}</Text>
+        <Text style={s.info}>月額度跨已授權 Starry Apps 共用，適用核准的 AI 與非 AI 服務；每月 1 日（台灣時間）恢復。此頁僅查詢，不會扣額。</Text>
       </View>:null}
       <Btn label="登出" onPress={()=>{void action(async()=>{await signOut();setMe(null);});}}/>
       <Btn label="登出所有裝置" onPress={()=>{void action(async()=>{if(await confirmAction('登出所有裝置','這會使全部 Starry ID 裝置的登入狀態失效。')){await signOutEverywhere();setMe(null);}});}}/>
