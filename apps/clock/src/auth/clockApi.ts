@@ -7,7 +7,12 @@ async function call<T>(path:string,method='GET',data?:unknown,token?:string):Pro
  const headers:Record<string,string>={'Accept':'application/json'};
  if(data!==undefined)headers['Content-Type']='application/json';
  if(token)headers['Authorization']='Bearer '+token;
- const response=await fetch(CLOCK_API+path,{method,headers,body:data===undefined?undefined:JSON.stringify(data)});
+ let response:Response;
+ try{
+  response=await fetch(CLOCK_API+path,{method,headers,body:data===undefined?undefined:JSON.stringify(data)});
+ }catch{
+  throw new Error('無法連線到 Clock 電池服務，請檢查網路連線後再試。免費計時不受影響。');
+ }
  const body=await response.json() as T&BackendError;
  if(!response.ok)throw new Error(body.error?.message||'Clock 服務暫時不可用');
  return body;
