@@ -31,7 +31,18 @@ body.fullscreen #app{max-width:none}body.theater header,body.theater .mode-toggl
 <button id="exitTheater" aria-label="離開全螢幕" type="button">離開全螢幕</button>
 <div class="dialog-backdrop hidden" id="overlay" role="presentation"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
 <h2 id="dialogTitle">新增用途</h2><div id="presetForm"><label class="label" for="presetName">用途名稱</label><input class="textinput" id="presetName" maxlength="24" placeholder="例如：休息時間"><span class="label">倒數時間</span><div class="time-fields"><input id="minutes" class="textinput" type="number" min="0" max="1439" inputmode="numeric" value="5" aria-label="分鐘"><span>分</span><input id="seconds" class="textinput" type="number" min="0" max="59" inputmode="numeric" value="0" aria-label="秒"><span>秒</span></div><p class="note">每一種用途可設定固定倒數長度，選取後即可開始。</p></div>
-<div id="settingsForm" class="hidden"><label class="label" for="lead">結束前幾秒響鈴（0～120）</label><input id="lead" class="textinput" inputmode="numeric" type="number" min="0" max="120" value="10"><p class="note">提前提醒只響一次；歸零時會再響鈴。設定 0 代表只在歸零響鈴。</p><div class="switch"><span>提示音效</span><button id="soundToggle">開啟</button></div><div class="identity"><strong>Starry ID 中央會員</strong><p id="memberStatus">正在檢查只讀 API…</p><a href="https://id.starry.phd/account" target="_blank" rel="noopener noreferrer">開啟中央會員帳號中心</a><p>Clock 的 OAuth 登入須先完成中央 App Registry 登記，不會修改中央會員程式碼；計時器可免登入使用。</p></div></div>
+<div id="settingsForm" class="hidden"><label class="label" for="lead">結束前幾秒響鈴（0～120）</label><input id="lead" class="textinput" inputmode="numeric" type="number" min="0" max="120" value="10"><p class="note">提前提醒只響一次；歸零時會再響鈴。設定 0 代表只在歸零響鈴。</p><div class="switch"><span>提示音效</span><button id="soundToggle">開啟</button></div><div class="identity"><strong>Starry ID 中央會員</strong><p id="memberStatus">正在檢查中央登記…</p><p id="accountUser">未登入</p><p id="accountError" role="alert" style="color:var(--red)"></p><div id="accountButtons" style="display:grid;gap:9px">
+<button type="button" id="loginGoogle" class="icon-btn">使用 Google 登入 Starry</button>
+<button type="button" id="loginApple" class="icon-btn">使用 Apple 登入 Starry</button>
+<button type="button" id="consent" class="icon-btn hidden">閱讀並同意最新條款</button>
+<button type="button" id="editMember" class="icon-btn hidden">編輯會員顯示名稱</button>
+<button type="button" id="linkGoogle" class="icon-btn hidden">綁定 Google 登入</button>
+<button type="button" id="linkApple" class="icon-btn hidden">綁定 Apple 登入</button>
+<button type="button" id="logoutMember" class="icon-btn hidden">登出</button>
+<button type="button" id="logoutAllMember" class="icon-btn hidden">登出所有裝置</button>
+<button type="button" id="undoDelete" class="icon-btn hidden">撤回刪除申請</button>
+<button type="button" id="deleteMember" class="icon-btn hidden" style="color:var(--red)">申請刪除會員帳號</button>
+</div><p><a href="https://id.starry.phd/account" target="_blank" rel="noopener noreferrer">開啟 Starry ID 會員資料／頭像管理</a></p><p class="note">倒數功能不需登入。登入使用 Starry 瀏覽器中繼；App 不保管 Google、Apple 密碼。</p></div></div>
 <p id="formError" class="note" style="color:var(--red)" role="alert"></p><div class="modal-actions"><button id="cancel" class="large-btn">取消</button><button id="save" class="large-btn primary">儲存</button></div><button id="delete" class="danger hidden">刪除此用途</button>
 </div></div>
 <script>
@@ -69,6 +80,134 @@ const p={id:editor?.id||'p'+Date.now()+'-'+Math.random().toString(36).slice(2,6)
 function full(){if(document.fullscreenElement){document.exitFullscreen?.().catch(()=>{});document.body.classList.remove('fullscreen');return}if(document.documentElement.requestFullscreen){document.documentElement.requestFullscreen().then(()=>document.body.classList.add('fullscreen')).catch(()=>{theater=!theater;document.body.classList.toggle('theater',theater)})}else{theater=!theater;document.body.classList.toggle('theater',theater)} }
 async function checkMember(){const status=$('memberStatus');status.textContent='正在檢查 Clock App 登記…';try{const res=await fetch('/api/starry/status',{cache:'no-store'});const data=await res.json();status.textContent=data.app==='active'?'中央會員 App 已登記（尚需完成登入驗證）':data.app==='pending'?'尚未登記 clock；計時功能可正常使用':'中央會員暫時無法驗證；計時功能正常'}catch{status.textContent='會員 API 未連線；計時功能正常'}}
 $('start').addEventListener('click',start);$('reset').addEventListener('click',reset);$('timerTab').addEventListener('click',()=>{mode='timer';drawMode()});$('clockTab').addEventListener('click',()=>{mode='clock';drawMode()});$('sound').addEventListener('click',()=>{muted=!muted;unlockAudio();summary();persist()});$('soundToggle').addEventListener('click',()=>{muted=!muted;summary();persist()});$('add').addEventListener('click',()=>{editor=null;openDialog('preset')});$('settings').addEventListener('click',()=>openDialog('settings'));$('full').addEventListener('click',full);$('exitTheater').addEventListener('click',()=>{theater=false;document.body.classList.remove('theater')});$('cancel').addEventListener('click',closeDialog);$('save').addEventListener('click',save);$('delete').addEventListener('click',()=>{if(!editor||presets.length<=1)return;presets=presets.filter(p=>p.id!==editor.id);if(selected===editor.id)selected=presets[0].id;reset();persist();renderPresets();closeDialog()});$('overlay').addEventListener('click',e=>{if(e.target===$('overlay'))closeDialog()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDialog();if(e.code==='Space'&&!dialog&&mode==='timer'&&e.target===document.body){e.preventDefault();start()}});document.addEventListener('fullscreenchange',()=>document.body.classList.toggle('fullscreen',Boolean(document.fullscreenElement)));document.addEventListener('visibilitychange',()=>{tick();if(document.visibilityState==='visible')keepAwake()});
+
+/* Starry relay login: exactly https://clock.starry.phd/auth/done callback; fragment only. */
+const STAR='https://id.starry.phd',APPID='clock',REDIRECT='https://clock.starry.phd/auth/done';
+let webAccess=null,webMember=null,webRefreshPromise=null;
+const refreshingKey='clock:starry:refresh:v1',pendingKey='clock:starry:pending:v1';
+const qs=(obj)=>JSON.stringify(obj);
+function alertAccount(message){$('accountError').textContent=String(message||'無法完成操作').slice(0,200)}
+async function starryReq(path,options={},access=null){
+ const headers={'Accept':'application/json',...(options.body?{'Content-Type':'application/json'}:{}),...(access?{'Authorization':'Bearer '+access}:{})};
+ const r=await fetch(STAR+path,{...options,headers,credentials:'omit'});
+ if(!r.ok){const data=await r.json().catch(()=>({}));const error=new Error(data?.error?.message||'中央會員 HTTP '+r.status);error.code=data?.error?.code||'HTTP_'+r.status;error.status=r.status;throw error}
+ return r.status===204?null:r.json();
+}
+async function refreshWeb(){
+ if(!webRefreshPromise){
+  webRefreshPromise=(async()=>{
+   const current=sessionStorage.getItem(refreshingKey);
+   if(!current)throw new Error('請先登入');
+   const next=await starryReq('/v1/auth/refresh',{method:'POST',body:qs({refresh_token:current})});
+   if(!next?.refresh_token||!next?.access_token)throw new Error('Invalid Starry token rotation');
+   sessionStorage.setItem(refreshingKey,next.refresh_token);
+   webAccess=next.access_token;
+   return webAccess;
+  })().catch(error=>{
+   if(error.code==='REFRESH_REUSED'||error.status===401){webAccess=null;sessionStorage.removeItem(refreshingKey)}
+   throw error;
+  }).finally(()=>webRefreshPromise=null);
+ }
+ return webRefreshPromise;
+}
+async function webAuthorized(fn){
+ if(!webAccess)await refreshWeb();
+ try{return await fn(webAccess)}
+ catch(e){if(e.status!==401)throw e;await refreshWeb();return fn(webAccess)}
+}
+async function loadWebMember(){
+ if(!sessionStorage.getItem(refreshingKey))return null;
+ try{return webMember=await webAuthorized(t=>starryReq('/v1/me',{},t))}
+ catch{return webMember=null}
+}
+function setMemberButtons(member){
+ for(const id of ['loginGoogle','loginApple'])$(id).classList.toggle('hidden',Boolean(member));
+ const show=Boolean(member);
+ for(const id of ['editMember','linkGoogle','linkApple','logoutMember','logoutAllMember','deleteMember'])$(id).classList.toggle('hidden',!show||member?.status==='pending_deletion'||member?.consent?.required);
+ $('consent').classList.toggle('hidden',!member?.consent?.required);
+ $('undoDelete').classList.toggle('hidden',member?.status!=='pending_deletion');
+ $('accountUser').textContent=member?(member.profile?.display_name||'繁星會員')+' · '+member.user_id:'未登入（倒數仍可使用）';
+}
+async function loadMemberWebUI(){setMemberButtons(await loadWebMember())}
+function logoutWebLocal(){webAccess=null;webMember=null;sessionStorage.removeItem(refreshingKey);sessionStorage.removeItem(pendingKey);setMemberButtons(null)}
+function bytesHex(bytes){return Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('')}
+async function relayWeb(provider,operation='login'){
+ $('accountError').textContent='';
+ try{
+  const status=await starryReq('/v1/apps/clock/config');
+  if(status.status!=='active')throw new Error('中央會員目前未啟用 Clock');
+  const n=await starryReq('/v1/auth/nonce',{method:'POST',body:qs({app_id:APPID})});
+  const state=bytesHex(crypto.getRandomValues(new Uint8Array(32)));
+  const hash=bytesHex(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(n.nonce))));
+  sessionStorage.setItem(pendingKey,qs({provider,operation,nonce:n.nonce,state,createdAt:Date.now()}));
+  const url=new URL(STAR+'/auth/'+provider+'/start');
+  url.searchParams.set('app_id',APPID);url.searchParams.set('nonce',hash);
+  url.searchParams.set('return',REDIRECT);url.searchParams.set('state',state);
+  window.location.assign(url.href);
+ }catch(e){alertAccount(e.message)}
+}
+async function completeWebRelay(){
+ if(location.pathname!=='/auth/done')return;
+ const frag=location.hash.replace(/^#/,'');
+ history.replaceState(null,'','/'); // remove sensitive token fragment before any network call
+ const raw=sessionStorage.getItem(pendingKey);sessionStorage.removeItem(pendingKey);
+ if(!raw){alertAccount('登入請求已失效，請重新操作');return}
+ try{
+  const p=JSON.parse(raw);
+  if(Date.now()-p.createdAt>10*60*1000)throw new Error('登入已逾時');
+  const par=new URLSearchParams(frag);
+  if(par.getAll('state').length!==1||par.get('state')!==p.state)throw new Error('登入狀態無法驗證');
+  if(par.has('error'))throw new Error('登入已取消或失敗');
+  const idToken=par.get('id_token');
+  if(par.getAll('id_token').length!==1||!idToken||idToken.length>8192)throw new Error('登入回傳資料不完整');
+  const payload={app_id:APPID,id_token:idToken,nonce:p.nonce};
+  if(p.provider==='apple'&&par.get('code')){
+   payload.authorization_code=par.get('code');payload.redirect_uri=STAR+'/auth/apple/callback';
+  }
+  if(p.operation==='link'){
+   await webAuthorized(t=>starryReq('/v1/me/identities/'+p.provider,{method:'POST',body:qs(Object.fromEntries(Object.entries(payload).filter(([k])=>k!=='app_id')))},t));
+  }else{
+   const result=await starryReq('/v1/auth/'+p.provider,{method:'POST',body:qs(payload)});
+   sessionStorage.setItem(refreshingKey,result.refresh_token);
+   webAccess=result.access_token;
+  }
+  await loadMemberWebUI();
+ }catch(e){alertAccount(e.code==='IDENTITY_IN_USE'?'此登入已屬於其他 Starry 帳號，請至中央會員中心處理合併。':e.message)}
+}
+function webAction(id,fn){$(id).addEventListener('click',()=>{Promise.resolve(fn()).catch(e=>alertAccount(e.message))})}
+webAction('loginGoogle',()=>relayWeb('google'));webAction('loginApple',()=>relayWeb('apple'));
+webAction('linkGoogle',()=>relayWeb('google','link'));webAction('linkApple',()=>relayWeb('apple','link'));
+webAction('logoutMember',async()=>{
+ try{await webAuthorized(t=>starryReq('/v1/auth/logout',{method:'POST'},t))}finally{logoutWebLocal()}
+});
+webAction('logoutAllMember',async()=>{
+ if(!confirm('確定登出所有裝置嗎？'))return;
+ await webAuthorized(t=>starryReq('/v1/auth/logout-all',{method:'POST'},t));logoutWebLocal()
+});
+webAction('consent',async()=>{
+ if(!webMember)return;
+ if(!confirm('請先閱讀 Starry ID 服務條款（https://id.starry.phd/terms）與隱私政策（https://id.starry.phd/privacy）。已閱讀且同意？'))return;
+ const data={terms_version:webMember.consent.terms_version,privacy_version:webMember.consent.privacy_version};
+ await webAuthorized(t=>starryReq('/v1/me/consents',{method:'POST',body:qs(data)},t));
+ await loadMemberWebUI();
+});
+webAction('editMember',async()=>{
+ if(!webMember)return;
+ const name=prompt('請輸入顯示名稱（1～50 字）',webMember.profile.display_name||'');
+ if(name===null)return;
+ const cleaned=name.trim();
+ if(cleaned.length<1||cleaned.length>50)throw new Error('顯示名稱需 1～50 字');
+ await webAuthorized(t=>starryReq('/v1/me/profile',{method:'PATCH',headers:{'If-Match':'"'+webMember.profile.version+'"'},body:qs({display_name:cleaned})},t));
+ await loadMemberWebUI();
+});
+webAction('deleteMember',async()=>{
+ if(!confirm('申請刪除 Starry 會員帳號？7 天內可撤回，且不會取消訂閱。'))return;
+ await webAuthorized(t=>starryReq('/v1/me/deletion',{method:'POST',body:qs({confirm:true})},t));
+ logoutWebLocal();
+});
+webAction('undoDelete',async()=>{await webAuthorized(t=>starryReq('/v1/me/deletion',{method:'DELETE'},t));await loadMemberWebUI()});
+void completeWebRelay().then(()=>loadMemberWebUI()).catch(()=>{});
+
 read();reset();renderPresets();summary();setInterval(tick,100);drawMode();if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 })();
 </script>
