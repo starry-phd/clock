@@ -130,7 +130,7 @@ finally{saveBusy=false}
 
 /* Starry relay login: exactly https://clock.starry.phd/auth/done callback; fragment only. */
 const STAR='https://id.starry.phd',APPID='clock',REDIRECT='https://clock.starry.phd/auth/done';
-const CLOCK_BACKEND='https://clock-api.starry-phd.workers.dev';
+const CLOCK_BACKEND=location.hostname==='clock-staging.starry-phd.workers.dev'?'https://clock-api-staging.starry-phd.workers.dev':'https://clock-api.starry-phd.workers.dev';
 let webAccess=null,webMember=null,webRefreshPromise=null;
 const refreshingKey='clock:starry:refresh:v1',pendingKey='clock:starry:pending:v1';
 const qs=(obj)=>JSON.stringify(obj);
