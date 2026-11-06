@@ -20,7 +20,7 @@ assert.match(body,/CLOCK_BACKEND='\/api\/clock'/);
 const sameOriginPricing=await get('/api/clock/v1/pricing');
 const pricingData=await sameOriginPricing.json();
 assert.equal(pricingData.free_presets,3);
-assert.equal(pricingData.features.find(f=>f.feature==='clock.preset.create')?.available,false);
+assert.equal(pricingData.features.find(f=>f.feature==='clock.preset_create')?.available,false);
 assert.equal(sameOriginPricing.headers.get('cache-control'),'no-store');
 const sameOriginAnon=await fetch(base+'/api/clock/v1/presets',{signal:AbortSignal.timeout(18000)});
 assert.equal(sameOriginAnon.status,401);
@@ -56,7 +56,7 @@ const livePriceResponse=await fetch(liveBase+'/api/clock/v1/pricing',{signal:Abo
 assert.equal(livePriceResponse.status,200,'production same-origin Battery API unavailable');
 const livePricing=await livePriceResponse.json();
 assert.equal(livePricing.free_presets,3);
-assert.equal(livePricing.features.find(x=>x.feature==='clock.preset.create')?.available,false,'unexpected production Battery charges');
+assert.equal(livePricing.features.find(x=>x.feature==='clock.preset_create')?.available,false,'unexpected production Battery charges');
 const liveAnonymousMember=await fetch(liveBase+'/api/clock/v1/presets',{signal:AbortSignal.timeout(18000)});
 assert.equal(liveAnonymousMember.status,401,'member data must require a Starry token');
 console.log('CLOCK_PRODUCTION_BATTERY_GATEWAY_PASS',JSON.stringify({sameOrigin:true,pricing:true,authRequired:true,charges:false}));
