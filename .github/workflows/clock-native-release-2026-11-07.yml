@@ -1,0 +1,66 @@
+name: clock-native-release-2026-11-07
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.release/clock-starry-relay-2026-11-07.json'
+permissions:
+  contents: read
+concurrency:
+  group: clock-native-release-2026-11-07
+  cancel-in-progress: false
+jobs:
+  ios:
+    name: Queue iOS production IPA + App Store Connect upload
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      CI: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10.18.0'
+      - name: Check Expo automation authorization
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo 'EXPO_TOKEN is not configured for this repository or organization.' >&2
+            exit 2
+          fi
+      - run: pnpm install --frozen-lockfile
+      - run: python3 tools/preflight.py --checks eas
+      - run: pnpm --dir apps/clock exec tsc --noEmit
+      - name: Queue signed iOS build and auto-upload to App Store Connect
+        working-directory: apps/clock
+        run: npx --yes eas-cli@latest build --platform ios --profile production --auto-submit --non-interactive --no-wait
+  android:
+    name: Queue Google Play Android AAB build (no publishing)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      CI: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10.18.0'
+      - name: Check Expo automation authorization
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo 'EXPO_TOKEN is not configured for this repository or organization.' >&2
+            exit 2
+          fi
+      - run: pnpm install --frozen-lockfile
+      - run: python3 tools/preflight.py --checks eas
+      - run: pnpm --dir apps/clock exec tsc --noEmit
+      - name: Queue signed Android production AAB build
+        working-directory: apps/clock
+        run: npx --yes eas-cli@latest build --platform android --profile production --non-interactive --no-wait
