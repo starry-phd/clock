@@ -1,4 +1,5 @@
-// Clock optional backend: no AI endpoint enabled, no Starry ID changes.
+// Clock optional backend: no charge-enabled endpoints, no Starry ID changes.
+// Starry Battery = member-shared monthly consumption quota (AI + approved non-AI).
 const ID = 'https://id.starry.phd';
 function b64(raw) {
   if(!/^[A-Za-z0-9_-]+$/.test(raw)) throw Error('invalid_token');
@@ -36,16 +37,24 @@ async function batteryFetch(path,body,token,key,fetchFn){
   return r.json();
 }
 // This helper is not connected to any route until owner approves an AI product and service costs.
-export async function runBatteryBackedTask({memberToken,units,idempotencyKey,execute,env,fetchFn=fetch}){
+export async function runBatteryBackedTask({memberToken,taskType='clock.ai',units,idempotencyKey,execute,env,fetchFn=fetch}){
   if(!env?.STARRY_BATTERY_KEY)throw Error('battery_key_missing');
+  if(!/^clock\.[a-z][a-z0-9.]{1,56}$/.test(taskType))throw Error('invalid_task_type');
   if(!Number.isInteger(units)||units<1||units>30)throw Error('invalid_units');
   if(typeof idempotencyKey!=='string'||idempotencyKey.length<8||idempotencyKey.length>128)throw Error('invalid_idempotency');
   if(typeof execute!=='function')throw Error('ai_executor_missing');
   // If Starry ID cannot be contacted, fail closed BEFORE any AI work.
   await verifyAccessViaJWKS(memberToken,fetchFn);
   const key=env.STARRY_BATTERY_KEY;
-  const reservation=await batteryFetch('/v1/battery/reservations',{task_type:'clock.ai',units,idempotency_key:idempotencyKey},memberToken,key,fetchFn);
-  if(!reservation.reservation_id||reservation.status!=='reserved')throw Error('reservation_failed');
+  const reservation=await batteryFetch('/v1/battery/reservations',{task_type:taskType,units,idempotency_key:idempotencyKey},memberToken,key,fetchFn);
+  // Retry must not execute a side effect twice; central will resolve/expire the original.
+  if(reservation.replayed)throw Error('battery_request_in_progress_or_replayed');
+  if(!reservation.reservation_id||reservation.status!=='reserved'||reservation.task_type!==taskType)throw Error('reservation_failed');
+  // Clock X means actual batteries charged. Central task rate must remain one per unit.
+  if(taskType==='clock.preset.create' && (reservation.units!==units||reservation.amount!==units)){
+    try{await batteryFetch('/v1/battery/reservations/'+encodeURIComponent(reservation.reservation_id)+'/release',undefined,null,key,fetchFn);}catch{}
+    throw Error('battery_price_mismatch');
+  }
   let committed=false;
   try{
     const output=await execute();

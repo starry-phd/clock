@@ -33,14 +33,23 @@
 ## Web Worker and release gates
 - Build the PWA Worker with python3 tools/build_worker.py. Generated web-preview/cloudflare-worker.mjs is ignored and regenerated for tests/deploy.
 - Generated CSP permits Starry ID HTTPS fetch, and the Worker serves the /auth/done callback with no-store cache headers.
-- Production clock.starry.phd has NOT been redeployed from this PR. A staged verification and approved release remain required.
+- Clock production web relay was subsequently deployed and accepted via GitHub Actions; see PR #5.
 - Existing published iOS IPA uses the previous clockstarry scheme. A NEW EAS native build is required to activate the new clock:// callbacks.
 - Do not submit to App Store, Google Play or release existing production resources without owner approval.
 
-## Optional backend Battery
-- Clock has no AI task currently. Its clock-api backend skeleton is not deployed and consumes no Battery.
-- Backend validates ES256 JWKS with issuer starry-id:production, audience starry, app_id clock, and exp.
-- For future AI: reserve clock.ai using STARRY_BATTERY_KEY in the Worker Secret, execute AI only after successful reservation, commit upon success or release on failure.
-- Battery fails closed if Starry ID is unavailable. Default units up to 30 until owner adjusts task limits.
-- New Cloudflare clock-api staging/production Workers, service key, paid AI vendor, and quotas require owner approval before provisioning.
-- Do not modify Starry ID source, settings, databases or secrets.
+## 繁星電池艙 Starry Battery（業主 2026-11-07 最新定義）
+
+正式名稱：**繁星電池艙 Starry Battery**。正式定義：**會員共用的消費用量月額度**，不限 AI 任務。每位會員各有獨立月額度，同一會員在已授權 Starry Apps 共用；每月 1 日台灣時間重置，不累積，不能購買／轉讓／透支。
+
+- 任務類型可涵蓋經核准的 AI 與非 AI 功能，不能使用 `clock.ai` 代扣非 AI 服務。計時器第 4 組起預計使用獨立任務類型 `clock.preset.create`，前 3 組免費，之後每組 X 顆，由 Owner 設定。**收費端點目前尚未啟用**。
+- 只有 Clock API 後端能使用 Secret `STARRY_BATTERY_KEY`，驗證中央 Access Token、`user_id` 及 `app_id=clock`；預留 → 成功 commit，失敗／取消／逾時 release，冪等避免重扣；中央不可達時不啟動收費服務。
+- Clock API 需檢查中央實際返回的 `amount` 與畫面明示的 X 一致；金鑰不得進 App／Web／Git／日誌，不修改 Starry ID 資料庫。
+- 兩端同步：Expo iOS／Android 與 Web／PWA **所有新開發功能必須同 PR 更新**；詳細定義與驗收表見 [Battery v2／平台同步矩陣](battery-v2-platform-parity.md)。
+
+### 文件版本差異（不可隱藏）
+
+業主已更新 [DEV-A Google Doc](https://docs.google.com/document/d/1OdQREti12tzUBxZwgZ89WjUYdb-dCEnIEJ-AlpULky8/edit) 的正式 Battery 定義；當前 `starry-phd/id` GitHub `integration-guide.md` 和 OpenAPI 的**說明文字仍用「免費 AI 用量月額度」**。此處優先使用最新業主核定商業定義，但現有 REST 請求／回應必須按實際中央契約操作，若未登記非 AI 任務則一律不扣量、不冒用 AI 類型。
+
+### 發布實際狀態（截至 2026-11-07）
+
+Clock 網頁正式版 `clock.starry.phd` 的 Starry 登入中繼已部署並有 GitHub staging／production HTTP 驗收；Expo 原生 IPA／AAB 新版建置仍因 GitHub Actions 缺少 `EXPO_TOKEN` 而未完成，不能宣稱 App Store／Google Play 已同步上線。Battery 本次是兩端共用的**只讀餘額 UI**與開發規則更新，並未對任何會員產生消耗。
