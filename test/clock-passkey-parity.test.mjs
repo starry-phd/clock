@@ -66,7 +66,7 @@ test('2026-11-07.12: native iOS shared Keychain SSO is opt-in and Android cannot
   read('apps/clock/app/index.tsx'),read('services/clock-api/src/routes.mjs')
  ]);
  const groups=JSON.parse(app).expo.ios.entitlements['keychain-access-groups'];
- assert.ok(groups[0].includes('phd.starry.sso'),'shared iOS group must be first');
+ assert.deepEqual(groups,['$(AppIdentifierPrefix)phd.starry.shared'],'v14 requires exactly the shared iOS group');
  assert.ok(groups[0].includes('$(AppIdentifierPrefix)'),'do not hardcode Apple Team ID');
  assert.match(session,/sharedStorage:Platform\.OS==='ios'\?iosSharedStorage:undefined/);
  assert.match(session,/starry\.syncDeviceSignIn\(\)/);
@@ -75,4 +75,25 @@ test('2026-11-07.12: native iOS shared Keychain SSO is opt-in and Android cannot
  assert.match(screen,/onStarryAuthChange/);
  assert.match(worker,/from '\.\/starry-sdk\.ts'/);
  assert.doesNotMatch(session,/BATTERY_SERVICE_KEYS|STARRY_BATTERY_KEY/);
+});
+
+test('2026-11-07.14: Web login and logout use official browser-wide Starry SSO',async()=>{
+ const [html,client,guide]=await Promise.all([
+  read('web-preview/index.html'),
+  read('apps/clock/src/auth/starry-client.ts'),
+  read('docs/STARRY-ID-2026-11-07.14-AUDIT.md')
+ ]);
+ for(const method of ['shareWebSignIn','syncWebSignIn','completeWebSsoCheck','signOutWebEverywhere']){
+  assert.ok(client.includes(method+'('),'official SDK lacks '+method);
+  assert.ok(html.includes('.'+method+'('),'Clock Web does not invoke '+method);
+ }
+ assert.match(html,/WEB_SSO_RETURN='https:\/\/clock\.starry\.phd\/'/,'SSO return URL must be registered and fragment-free');
+ assert.match(html,/const ssoReturn=await client\.completeWebSsoCheck\(\)/);
+ assert.match(html,/if\(ssoReturn!==null\)/,'SSO callback must be handled before OAuth relay');
+ assert.match(html,/if\(location\.pathname==='\/auth\/done'\)/);
+ assert.match(html,/await client\.syncWebSignIn\(\{returnUrl:WEB_SSO_RETURN\}\)/);
+ assert.match(html,/await requireWebSdk\(\)\.shareWebSignIn\(\{returnUrl:WEB_SSO_RETURN\}\)/);
+ assert.match(html,/await requireWebSdk\(\)\.signOutWebEverywhere\(\{returnUrl:WEB_SSO_RETURN\}\)/);
+ assert.doesNotMatch(html,/localStorage\.setItem\(['"]starry\.sso/);
+ assert.match(guide,/Android.*選做/,'Android shared SSO is optional in v14');
 });
