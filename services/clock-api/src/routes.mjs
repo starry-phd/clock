@@ -132,6 +132,9 @@ export async function handleClock(request,env,verify){
        input.presets.some(p=>!freeValid(p))||
        new Set(input.presets.map(p=>p.id)).size!==input.presets.length)
       return problem('INVALID_FREE_PRESETS','首次同步僅接受 1～3 組有效用途',400,origin);
+    // A preset ID must never appear in both the free and paid lists.
+    const paid=await dbAll(env,"SELECT preset_id AS id FROM clock_presets WHERE user_id=? AND state IN ('pending','active')",userId);
+    if(input.presets.some(p=>paid.some(x=>x.id===p.id)))return problem('PRESET_ID_CONFLICT','此用途已存在於付費清單，請重新同步',409,origin);
     // First write wins. Subsequent devices never change canonical free slots.
     const existing=await freeRows();
     if(existing.length===0){
@@ -150,6 +153,8 @@ export async function handleClock(request,env,verify){
     if(!freeValid(input))return problem('INVALID_FREE_PRESET','免費用途資料不正確',400,origin);
     const current=await freeRows();
     if(current.some(p=>p.id===input.id))return problem('FREE_PRESET_EXISTS','此用途已存在於雲端',409,origin);
+    const used=await dbOne(env,"SELECT preset_id FROM clock_presets WHERE user_id=? AND preset_id=? AND state IN ('pending','active')",userId,input.id);
+    if(used)return problem('PRESET_ID_CONFLICT','此用途已存在於付費清單',409,origin);
     if(current.length>=3)return problem('FREE_SLOTS_FULL','免費用途最多三組',409,origin);
     // A single conditional INSERT prevents concurrent requests from using a
     // fourth free slot; slots 0–2 are the only possible targets.
@@ -240,7 +245,9 @@ export async function handleClock(request,env,verify){
     // A new paid fourth timer requires three member-owned free slots.
     // Replay of a previously committed or reserved transaction was handled
     // above, so this guard cannot retroactively duplicate a charge.
-    if((await freeRows()).length<3)return problem('FREE_SLOTS_NOT_READY','請先登入並同步前三組免費計時器，之後才能確認第 4 組扣量',409,origin);
+    const memberFree=await freeRows();
+    if(memberFree.length<3)return problem('FREE_SLOTS_NOT_READY','請先登入並同步前三組免費計時器，之後才能確認第 4 組扣量',409,origin);
+    if(memberFree.some(p=>p.id===preset_id))return problem('PRESET_ID_CONFLICT','計時器編號已存在於免費用途中',409,origin);
     const p=await price(env);
     if(!p||!p.enabled)return problem('FEATURE_DISABLED','付費新增尚未開放，原有計時器仍可正常使用',409,origin);
     if(accepted_units!==p.units)return problem('PRICE_CHANGED','費率已更新，請重新確認',409,origin);
