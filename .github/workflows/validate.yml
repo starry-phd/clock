@@ -25,6 +25,8 @@ jobs:
     name: Tests and TS types
     needs: gitleaks
     runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --experimental-strip-types
     steps:
       - uses: actions/checkout@v4
         with:
