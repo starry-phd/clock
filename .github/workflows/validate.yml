@@ -52,6 +52,7 @@ jobs:
       - run: node --test test/starry-relay.test.mjs
       - run: node --test test/clock-api.test.mjs
       - run: node --test test/platform-parity.test.mjs
+      - run: node --test test/clock-member-v18.test.mjs
       - run: node --test test/clock-passkey-parity.test.mjs
       - run: node --test test/clock-web-sso.test.mjs
       - run: node --test test/clock-battery-feature.test.mjs
