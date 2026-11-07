@@ -14,7 +14,13 @@
       "buildNumber": "1",
       "associatedDomains": [
         "webcredentials:id.starry.phd"
-      ]
+      ],
+      "entitlements": {
+        "keychain-access-groups": [
+          "$(AppIdentifierPrefix)phd.starry.sso",
+          "$(AppIdentifierPrefix)phd.starry.clock"
+        ]
+      }
     },
     "android": {
       "package": "phd.starry.clock",
