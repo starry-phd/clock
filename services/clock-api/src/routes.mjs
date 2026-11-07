@@ -290,8 +290,9 @@ export async function handleClock(request,env,verify){
       reservation=await battery('/v1/battery/reservations',{task_type:TASK,task_label:p.label.slice(0,40),units:p.units,idempotency_key:'clock:'+request_id},auth.slice(7),env);
     }catch(error){
       await failed(env,userId,request_id,error.code||'BATTERY_UNAVAILABLE');
-      if(error.code==='BATTERY_INSUFFICIENT')return problem('BATTERY_INSUFFICIENT','本月電池不足，請等待下月恢復',409,origin);
-      if(error.code==='BATTERY_APP_CAP')return problem('BATTERY_APP_CAP','Clock 本月電池用量已達中央上限',409,origin);
+      if(error.code==='BATTERY_INSUFFICIENT')return problem('BATTERY_INSUFFICIENT','免費月額度與此 App 量子電池不足，請稍後再試或等待下月恢復',409,origin);
+      if(error.code==='BATTERY_APP_CAP')return problem('BATTERY_APP_CAP','Clock 電池用量已達本月上限，請稍後再試',409,origin);
+      if(error.code==='SERVICE_UNAVAILABLE')return problem('SERVICE_UNAVAILABLE','中央電池艙維護中，請稍後再試；本次不會扣量',503,origin);
       if(error.code==='IDEMPOTENCY_CONFLICT')return problem('IDEMPOTENCY_CONFLICT','中央任務編號已被其他請求使用',409,origin);
       return problem('BATTERY_UNAVAILABLE','電池艙暫時無法扣量，未新增計時器',503,origin);
     }
