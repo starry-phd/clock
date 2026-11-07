@@ -115,6 +115,74 @@ export async function handleClock(request,env,verify){
   try{claims=await verify(auth.slice(7))}catch{return problem('UNAUTHORIZED','Starry ID 登入已失效或暫時無法驗證',401,origin)}
   const userId=claims.sub;
   if(!userId||claims.app_id!=='clock')return problem('UNAUTHORIZED','登入帳號與 Clock 不符',401,origin);
+
+  // First three slots belong to the Starry member, not to the current device.
+  // Local v1 presets are imported only once; other devices read the first
+  // authenticated bootstrap instead of silently overwriting the cloud.
+  const freeRows=()=>dbAll(env,
+   'SELECT slot,preset_id AS id,name,duration_seconds AS durationSeconds,version FROM clock_free_presets WHERE user_id=? ORDER BY slot',userId);
+  const freeValid=p=>p&&typeof p==='object'&&typeof p.id==='string'&&/^[A-Za-z0-9_-]{1,80}$/.test(p.id)&&timerName(p.name)&&
+    Number.isInteger(p.durationSeconds)&&p.durationSeconds>=1&&p.durationSeconds<=86399;
+  if(path==='/v1/presets/free'&&method==='GET'){
+    return json({presets:await freeRows()},200,origin);
+  }
+  if(path==='/v1/presets/free/init'&&method==='POST'){
+    const input=await body(request);
+    if(!Array.isArray(input.presets)||input.presets.length<1||input.presets.length>3||
+       input.presets.some(p=>!freeValid(p))||
+       new Set(input.presets.map(p=>p.id)).size!==input.presets.length)
+      return problem('INVALID_FREE_PRESETS','首次同步僅接受 1～3 組有效用途',400,origin);
+    // First write wins. Subsequent devices never change canonical free slots.
+    const existing=await freeRows();
+    if(existing.length===0){
+      for(let slot=0;slot<input.presets.length;slot++){
+        const p=input.presets[slot];
+        await dbRun(env,
+         'INSERT OR IGNORE INTO clock_free_presets(user_id,slot,preset_id,name,duration_seconds) VALUES(?,?,?,?,?)',
+         userId,slot,p.id,p.name.trim(),p.durationSeconds);
+      }
+    }
+    return json({presets:await freeRows()},200,origin);
+  }
+  if(path==='/v1/presets/free'&&method==='POST'){
+    const input=await body(request);
+    if(!freeValid(input))return problem('INVALID_FREE_PRESET','免費用途資料不正確',400,origin);
+    const current=await freeRows();
+    if(current.some(p=>p.id===input.id))return problem('FREE_PRESET_EXISTS','此用途已存在於雲端',409,origin);
+    if(current.length>=3)return problem('FREE_SLOTS_FULL','免費用途最多三組',409,origin);
+    // A single conditional INSERT prevents concurrent requests from using a
+    // fourth free slot; slots 0–2 are the only possible targets.
+    const inserted=await dbRun(env,
+      `INSERT OR IGNORE INTO clock_free_presets(user_id,slot,preset_id,name,duration_seconds)
+       SELECT ?,s.slot,?,?,? FROM (SELECT 0 AS slot UNION ALL SELECT 1 UNION ALL SELECT 2) s
+       WHERE NOT EXISTS(SELECT 1 FROM clock_free_presets f WHERE f.user_id=? AND f.slot=s.slot)
+       ORDER BY s.slot LIMIT 1`,
+      userId,input.id,input.name.trim(),input.durationSeconds,userId);
+    if((inserted.meta?.changes||0)!==1)return problem('FREE_SLOT_CONFLICT','其他裝置已更新免費用途，請重新整理',409,origin);
+    const updated=await freeRows();
+    return json({status:'created',presets:updated},201,origin);
+  }
+  const freeMatch=/^\\/v1\\/presets\\/free\\/([A-Za-z0-9_-]{1,80})$/.exec(path);
+  if(freeMatch&&method==='PATCH'){
+    const input=await body(request);
+    if(!timerName(input.name)||!Number.isInteger(input.duration_seconds)||input.duration_seconds<1||
+       input.duration_seconds>86399||!Number.isInteger(input.version)||input.version<1)
+       return problem('INVALID_FREE_PRESET','免費用途版本、名稱或長度不正確',400,origin);
+    const updated=await dbRun(env,
+     'UPDATE clock_free_presets SET name=?,duration_seconds=?,version=version+1,updated_at=? WHERE user_id=? AND preset_id=? AND version=?',
+     input.name.trim(),input.duration_seconds,now(),userId,freeMatch[1],input.version);
+    if((updated.meta?.changes||0)!==1)return problem('FREE_SLOT_CONFLICT','其他裝置已修改此用途，請重新整理',409,origin);
+    return json({status:'updated',presets:await freeRows()},200,origin);
+  }
+  if(freeMatch&&method==='DELETE'){
+    const input=await body(request);
+    if(!Number.isInteger(input?.version)||input.version<1)return problem('INVALID_FREE_PRESET','請提供目前用途版本',400,origin);
+    const result=await dbRun(env,
+     'DELETE FROM clock_free_presets WHERE user_id=? AND preset_id=? AND version=?',
+     userId,freeMatch[1],input.version);
+    if((result.meta?.changes||0)!==1)return problem('FREE_SLOT_CONFLICT','其他裝置已修改此用途，請重新整理',409,origin);
+    return json({status:'deleted',presets:await freeRows(),refunded_units:0},200,origin);
+  }
   if(path==='/v1/presets'&&method==='GET'){
     const presets=await dbAll(env,"SELECT preset_id AS id,name,duration_seconds AS durationSeconds,paid_units AS paidUnits FROM clock_presets WHERE user_id=? AND state='active' ORDER BY created_at",userId);
     return json({presets},200,origin);
