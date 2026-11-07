@@ -135,12 +135,13 @@ export async function handleClock(request,env,verify){
     // First write wins. Subsequent devices never change canonical free slots.
     const existing=await freeRows();
     if(existing.length===0){
-      for(let slot=0;slot<input.presets.length;slot++){
-        const p=input.presets[slot];
-        await dbRun(env,
-         'INSERT OR IGNORE INTO clock_free_presets(user_id,slot,preset_id,name,duration_seconds) VALUES(?,?,?,?,?)',
-         userId,slot,p.id,p.name.trim(),p.durationSeconds);
-      }
+      // One atomic SQL statement prevents two simultaneous device bootstraps
+      // from interleaving the first three slots.
+      const values=input.presets.map(() => '(?,?,?,?,?)').join(',');
+      const params=input.presets.flatMap((p,slot)=>[userId,slot,p.id,p.name.trim(),p.durationSeconds]);
+      await dbRun(env,
+       'INSERT OR IGNORE INTO clock_free_presets(user_id,slot,preset_id,name,duration_seconds) VALUES '+values,
+       ...params);
     }
     return json({presets:await freeRows()},200,origin);
   }
