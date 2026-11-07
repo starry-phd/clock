@@ -43,7 +43,14 @@ body.fullscreen #app{max-width:none}body.theater header,body.theater .mode-toggl
 <select id="freeReplaceTarget" class="textinput" aria-label="選擇要取代的既有計時器"><option value="">請選擇一組用途</option></select>
 <button type="button" id="freeReplaceSave" class="large-btn" style="margin-top:10px;width:100%">免費取代並儲存</button>
 </div></div>
-<div id="settingsForm" class="hidden"><label class="label" for="lead">結束前幾秒響鈴（0～120）</label><input id="lead" class="textinput" inputmode="numeric" type="number" min="0" max="120" value="10"><p class="note">提前提醒只響一次；歸零時會再響鈴。設定 0 代表只在歸零響鈴。</p><div class="switch"><span>提示音效</span><button id="soundToggle">開啟</button></div><div style="margin:12px 0"><button type="button" id="legacyRestore" class="icon-btn" style="width:100%">查看／恢復舊用途備份</button><p class="note">備份不會自行覆寫計時器。選取舊用途後，可以免費取代既有用途。</p><div id="legacyBackupList" style="display:grid;gap:8px;max-height:160px;overflow:auto"></div></div><div class="identity"><strong>Starry ID 中央會員</strong><p id="memberStatus">正在檢查中央登記…</p><p id="accountUser">未登入</p><div id="batteryPanel" class="hidden" aria-live="polite"><strong>繁星電池艙 Starry Battery｜會員共用的消費用量月額度</strong><p id="batteryBalance">查詢中…</p><p class="note">與已授權的 Starry Apps 共用，適用核准的 AI 與非 AI 服務；每月 1 日（台灣時間）恢復。本頁只查詢，不扣額。</p></div><div id="ownerPricing" class="hidden" style="padding:12px;border:1px solid var(--accent);border-radius:12px;margin-top:12px"><strong>Clock 超級管理員｜電池消耗設定</strong><p class="note">每項 0～30 顆，設定保存於後端並留下稽核紀錄；未完成中央驗證前不會實際扣量。</p><div id="ownerPriceRows"></div><p id="ownerPriceMessage" class="note" role="status"></p></div><p id="accountError" role="alert" style="color:var(--red)"></p><div id="accountButtons" style="display:grid;gap:9px">
+<div id="settingsForm" class="hidden"><label class="label" for="lead">結束前幾秒響鈴（0～120）</label><input id="lead" class="textinput" inputmode="numeric" type="number" min="0" max="120" value="10"><p class="note">提前提醒只響一次；歸零時會再響鈴。設定 0 代表只在歸零響鈴。</p><div class="switch"><span>提示音效</span><button id="soundToggle">開啟</button></div><div style="margin:12px 0"><button type="button" id="legacyRestore" class="icon-btn" style="width:100%">查看／恢復舊用途備份</button><p class="note">備份不會自行覆寫計時器。選取舊用途後，可以免費取代既有用途。</p><div id="legacyBackupList" style="display:grid;gap:8px;max-height:160px;overflow:auto"></div></div><div class="identity"><strong>Starry ID 中央會員</strong><p id="memberStatus">正在檢查中央登記…</p><div id="memberIdentity" style="display:flex;align-items:center;gap:12px;margin:10px 0">
+ <div id="memberAvatar" role="img" aria-label="Starry ID 會員頭像" style="width:62px;height:62px;flex:0 0 62px;border-radius:50%;border:1px solid var(--line);background:var(--panel,#16233b);display:flex;align-items:center;justify-content:center;overflow:hidden"><span id="memberInitials" style="font-weight:800;font-size:22px">?</span></div>
+ <div style="min-width:0"><p id="accountUser">未登入</p><p id="memberNumber" class="note"></p></div>
+</div>
+<div id="memberLinks" class="hidden" style="display:grid;gap:8px;margin:10px 0">
+ <a id="publicProfile" class="icon-btn" href="https://id.starry.phd/account" target="_blank" rel="noopener noreferrer" style="text-align:center;text-decoration:none">查看我的公開會員頁</a>
+ <button id="shareInvite" type="button" class="icon-btn">分享我的邀請連結</button>
+</div><div id="batteryPanel" class="hidden" aria-live="polite"><strong>🔋 繁星電池艙 Starry Battery｜會員共用的消費用量月額度</strong><p id="batteryBalance">查詢中…</p><p class="note">與已授權的 Starry Apps 共用，適用核准的 AI 與非 AI 服務；每月 1 日（台灣時間）恢復。本頁只查詢，不扣額。</p></div><div id="ownerPricing" class="hidden" style="padding:12px;border:1px solid var(--accent);border-radius:12px;margin-top:12px"><strong>🔋 Clock 超級管理員｜電池消耗設定</strong><p class="note">每項 0～30 顆，設定保存於後端並留下稽核紀錄；未完成中央驗證前不會實際扣量。</p><div id="ownerPriceRows"></div><p id="ownerPriceMessage" class="note" role="status"></p></div><p id="accountError" role="alert" style="color:var(--red)"></p><div id="accountButtons" style="display:grid;gap:9px">
 <button type="button" id="loginGoogle" class="icon-btn">使用 Google 登入 Starry</button>
 <button type="button" id="loginApple" class="icon-btn">使用 Apple 登入 Starry</button>
 <button type="button" id="loginPasskey" class="icon-btn hidden">使用 Passkey 通行密鑰登入</button>
@@ -299,7 +306,29 @@ function setMemberButtons(member){
  for(const id of ['editMember','linkGoogle','linkApple','logoutMember','logoutAllMember','deleteMember'])$(id).classList.toggle('hidden',!show||member?.status==='pending_deletion'||member?.consent?.required);
  $('consent').classList.toggle('hidden',!member?.consent?.required);
  // The current central API permanently deletes immediately; no undo period.
- $('accountUser').textContent=member?(member.profile?.display_name||'繁星會員')+' · '+member.user_id:'未登入（倒數仍可使用）';
+ // Member number is a mutable public handle, never a DB key or localStorage key.
+ const no=typeof member?.member_no==='string'&&/^[A-Z]{2}\d{7,10}$/.test(member.member_no)?member.member_no:null;
+ $('accountUser').textContent=member?(member.profile?.display_name||'繁星會員'):'未登入（倒數仍可使用）';
+ $('memberNumber').textContent=member?'會員編號：'+(no||'尚未取得'):'';
+ $('memberLinks').classList.toggle('hidden',!no||member?.consent?.required);
+ if(no){
+  $('publicProfile').href=STAR+'/'+encodeURIComponent(no);
+ }
+ const avatar=$('memberAvatar');
+ avatar.replaceChildren();
+ if(member){
+  // Signed URLs expire after an hour: use the freshly fetched GET /v1/me URL.
+  // Never persist the avatar image URL or derive initials on the client.
+  const fallback=()=>{avatar.replaceChildren();const text=document.createElement('span');text.textContent=member.profile?.initials||'?';text.style.cssText='font-size:22px;font-weight:800';avatar.append(text)};
+  const url=member.profile?.avatar_url;
+  if(typeof url==='string'&&url.startsWith('https://')){
+   const img=document.createElement('img');img.alt='Starry ID 會員頭像';img.src=url;
+   img.referrerPolicy='no-referrer';img.style.cssText='width:100%;height:100%;object-fit:cover';
+   img.addEventListener('error',fallback,{once:true});avatar.append(img);
+  }else fallback();
+ }else{
+  const span=document.createElement('span');span.textContent='?';avatar.append(span);
+ }
 }
 
 
@@ -464,8 +493,8 @@ async function loadMemberWebUI(){
    const result=await requireWebSdk().request('GET','/v1/me/battery');
    const bal=result.balance;
    const quantum=result.quantum;
-   $('batteryBalance').textContent='本月 '+bal.period+'｜額度 '+bal.allowance+' 顆｜已用 '+bal.used+' 顆｜預留 '+bal.reserved+' 顆｜剩餘 '+bal.remaining+' 顆'
-    +(quantum?'｜此 App 量子電池餘額 '+quantum.balance+' 顆（可用 '+quantum.available+' 顆）':'');
+   $('batteryBalance').textContent='🔋 '+bal.remaining+' 顆普通電池（本月 '+bal.period+'，額度 '+bal.allowance+' 顆、已用 '+bal.used+' 顆、預留 '+bal.reserved+' 顆）'
+    +(quantum?'｜⚛️ '+quantum.available+' 顆量子電池（此 App 餘額 '+quantum.balance+' 顆）':'');
  }catch{
    $('batteryBalance').textContent='額度暫時無法讀取，不影響免費倒數計時。';
  }
@@ -578,6 +607,18 @@ webAction('deleteMember',async()=>{
  if(!confirm('再次確認：立即永久刪除 Starry 會員帳號？'))return;
  await requireWebSdk().deleteAccount();
  logoutWebLocal();
+});
+webAction('shareInvite',async()=>{
+ // Refresh the member number at share time; it may change in Starry ID.
+ const member=await requireWebSdk().me();
+ const no=typeof member?.member_no==='string'&&/^[A-Z]{2}\d{7,10}$/.test(member.member_no)?member.member_no:null;
+ if(!no)throw Error('會員編號尚未取得，請重新整理會員資料');
+ const url=STAR+'/Invite/'+encodeURIComponent(no);
+ if(typeof navigator.share==='function'){
+  try{await navigator.share({url});return}catch(e){if(e?.name==='AbortError')return}
+ }
+ try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(url);$('accountError').textContent='邀請連結已複製';return}}catch{}
+ prompt('複製我的邀請連結',url);
 });
 webAction('contactSupport',()=>{
  const version='1.1.1 (Web)';
