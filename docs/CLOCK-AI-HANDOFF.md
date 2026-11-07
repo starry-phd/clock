@@ -1,6 +1,6 @@
 # Clock 繁星計時器｜AI 開發交接（最新狀態）
 
-> 盤點時間：2026-11-07（台灣時間）。**本文件為目前的交接入口**；開發前須重新驗證雲端即時狀態，不能把測試通過等同所有功能已上線。
+> 盤點時間：2026-11-07（台灣時間）。串接指令最新版：**2026-11-07.9**。本文件仍記錄部署時點的狀態；以後續 PR／CI／staging 與實際中央 API 核驗結果為準，不能把模擬測試等同真實扣量成功。
 >
 > 專案 GitHub：[starry-phd/clock](https://github.com/starry-phd/clock)（公開）；正式 Web：[clock.starry.phd](https://clock.starry.phd)。
 
@@ -16,7 +16,7 @@
 | Owner 定價 | Clock D1 的 `clock.preset_create` 為 **2 顆／次、enabled=1、version=9**；`CLOCK_OWNER_USER_IDS` Secret 已在正式及 staging API 設定 |
 | Battery 計費 | 正式與 staging API 的 `BATTERY_CHARGES_ENABLED=false`。**使用者目前不會被扣點，不能聲稱第 4 組已可付費新增。** |
 | 金鑰（僅列有無，不含值） | 正式 `clock-api` **有** `STARRY_BATTERY_KEY`；staging `clock-api-staging` **沒有**。`clock` Web Worker 有此 Secret，**但前端不可使用金鑰** |
-| 中央 Battery 現況 | 對 `starry-battery` D1 唯讀檢查：**無 `battery_task_types` 資料表**，現存 `battery_accounts`、`battery_app_keys`、`battery_app_limits`、`battery_ledger`、`battery_policy`、`battery_reservations`。須確認最新中央 API／migrations／任務管理設計，**不可直接補表或改 Starry ID** |
+| 中央 Battery 契約 | 已核對 `starry-phd/id` `docs/integration-guide.md` 第 9、12 節與 `src/battery/battery.ts`：2026-11-07 版本**不再使用 `battery_task_types` 表**；由 Clock 後端自行決定 `clock.preset_create` 和 `units=X`（1 顆／單位），中央按 X 預留。不可修改 Starry ID。 |
 | 已產生收費資料 | 正式 Clock D1 查詢 `clock_presets=0`、`clock_requests=0`（截至本次盤點） |
 
 本次關鍵 PR：[ #8 Battery 定義與雙平台規範](https://github.com/starry-phd/clock/pull/8)、[#9 Clock API／Owner 定價／Expo+Web](https://github.com/starry-phd/clock/pull/9)、[#11 同網域 API](https://github.com/starry-phd/clock/pull/11)、[#12 合法任務碼](https://github.com/starry-phd/clock/pull/12)、[#13 免費取代儲存](https://github.com/starry-phd/clock/pull/13)。目前無開啟中的 PR（盤點時）。
@@ -32,8 +32,8 @@
 
 ## 3. 目前阻礙與接手優先順序
 
-1. **中央契約先行**：閱讀 `starry-phd/id` 最新 `docs/integration-guide.md`、`openapi/starry-id.v1.json`、Battery migrations／程式；核對 `starry-battery` 缺少 `battery_task_types` 是否是版本架構變動，確認 `clock.preset_create` 能在 Admin Lite 正式登記。**只查詢，不能自行修改 Starry ID**；若需要中央修補，回報 Owner／中央模組處理。
-2. **修復 staging 扣點條件**：由 Owner 在授權後台確認非 AI 任務 `clock.preset_create`、每單位消耗 1、單次上限至少 X；將可用的 `STARRY_BATTERY_KEY` 經 Cloudflare UI/Secret 方式設定至 `clock-api-staging`（**不索取或顯示值**），再確認正式 `clock-api` 現有金鑰是否有效。
+1. **中央契約已核對**：2026-11-07.9 中央自行接收合法 `clock.` 任務代碼、`task_label`、`units=X`；**不用在 Starry ID Admin Lite 建立任務類型**。仍須 staging 真實預留／扣量的實證；不得自行更改中央程式／D1。
+2. **修復 staging 扣點條件**：Clock Owner 定價 X（目前 2）與中央可用單次上限（1–100）相容；由業主本人將 Clock 專屬有效 `STARRY_BATTERY_KEY` 安全設定至 `clock-api-staging` Workers Secret（**不索取或顯示金鑰**），再確認正式 `clock-api` 金鑰有效。中央已不再維護任務費率或任務登記表。
 3. **安全交易驗收**：僅 staging 開啟 `BATTERY_CHARGES_ENABLED=true`，使用明確同意的測試會員驗證：第 4 組真正扣 X、中央帳本一致、餘額不足拒絕、取消／失敗 release、重送同一 request_id 不重扣、價格異動拒絕、非 Owner 403、跨會員資料隔離；未通過不得開 production 扣量。
 4. **一致性與資料遷移**：目前前 3 組預設以各裝置本機儲存，付費雲端預設才同步；尚未建立「每位會員跨所有裝置統一免費 3 組」的完整機制。上線收費前須避免用不同裝置繞過免費數量，同時保留既有本機資料；不可默默清空。
 5. **Expo 發布**：原生程式已同步但安裝版未更新；過去 GitHub EAS Job 因缺 `EXPO_TOKEN` 而在建置前停止，**先查最新設定再採取行動**。按 Owner 授權、安全簽章、iOS/Android 實機及審核流程處理，不要把 Web 已上線視為 App 已上架。
@@ -50,4 +50,11 @@
 
 ## 5. 可直接交給下一位 AI 的簡易指令
 
-> 請接手 GitHub `starry-phd/clock`，先閱讀 `AGENTS.md` 與 `docs/CLOCK-AI-HANDOFF.md`，核對 main／CI／Cloudflare 正式與 staging 狀態。保持 Expo iOS/Android 與 Web 全功能同步。優先查明 Starry ID Battery 中央任務 `clock.preset_create` 的真實契約及缺表問題；不得改 Starry ID，不得洩露金鑰。先在 staging 完成安全扣點驗收，CI 全綠透過 PR 合併，才依已授權流程啟用正式版。現有免費 3 組／免費取代功能必須保留；每次回報已完成、未完成、阻礙與下一步。
+> 請接手 GitHub `starry-phd/clock`，先閱讀 `AGENTS.md`、本文件與 2026-11-07.9 串接更新清單，核對 main／CI／Cloudflare 正式與 staging 狀態。保持 Expo iOS/Android 與 Web 同 PR 功能同步。Battery 中央新版不須任務表；用 `clock.preset_create`、`task_label`、`units=X` 經 Clock 後端預留並確認。不得改 Starry ID，不得洩露金鑰。先在 staging 完成真實扣量驗收，CI 全綠且業主准許後才依流程啟用正式版。現有免費 3 組／免費取代功能必須保留；每次回報已完成、未完成、阻礙與下一步。
+
+
+## 6. 2026-11-07.9 串接更新審查
+
+本次修復分支對照新 Starry ID 串接指令。中央 Battery 無任務類型表是新契約設計，不再要求新增資料表或後台任務登記。已修正 Clock API 的任務標籤、額度錯誤碼、重試恢復、中央 Owner 驗權、JWT 公鑰快取，以及兩端帳號刪除提示／Quantum 顯示／客服入口。**模擬測試不等同已啟用真實扣量。**
+
+尚未完成的跨平台工作：全量換用官方 `starry-client.ts`／`starry-sdk.ts`、Passkey 登入與管理、回前景 App Gate／公告完整驗收、前三組跨裝置一致性、Expo 原生 EAS 實機驗收。Android Passkey 須由業主按實際 APK／Play 簽章登記 SHA-256；測試用 staging Secret 仍缺。這些工作不得以已符合宣稱。
