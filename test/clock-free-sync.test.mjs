@@ -21,11 +21,14 @@ function freeDb(){
      async first(){return null},
      async run(){
       let changes=0;
-      if(sql.startsWith('INSERT OR IGNORE INTO clock_free_presets')&&sql.includes('VALUES(')){
-       const [u,slot,id,name,durationSeconds]=a;
-       const current=list(u);
-       if(!current.some(x=>x.slot===slot||x.id===id)){
-        users.set(u,[...current,{slot,id,name,durationSeconds,version:1}]);changes=1;
+      if(sql.startsWith('INSERT OR IGNORE INTO clock_free_presets')&&sql.includes('VALUES (')){
+       // SQLite executes the bootstrap as one atomic multi-value INSERT.
+       for(let i=0;i<a.length;i+=5){
+        const [u,slot,id,name,durationSeconds]=a.slice(i,i+5);
+        const current=list(u);
+        if(!current.some(x=>x.slot===slot||x.id===id)){
+         users.set(u,[...current,{slot,id,name,durationSeconds,version:1}]);changes++;
+        }
        }
       }else if(sql.startsWith('INSERT OR IGNORE INTO clock_free_presets')&&sql.includes('SELECT')){
        const [u,id,name,durationSeconds]=a;
