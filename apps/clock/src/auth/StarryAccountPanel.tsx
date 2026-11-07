@@ -1,9 +1,9 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
-import {readAppConfig, readBattery, setConsent, updateProfile, deleteAccount, StarryApiError} from '@clock/auth-contract';
+import {readBattery, setConsent, updateProfile, deleteAccount, StarryApiError} from '@clock/auth-contract';
 import appConfig from '../../app.json';
 import type {RelayProvider, StarryMe} from '@clock/auth-contract';
-import {loadMember, startStarryRelay, signOut, signOutEverywhere, clearSession, withAccess, officialStarryClient} from './session';
+import {loadMember, startStarryRelay, signOut, signOutEverywhere, clearSession, withAccess, officialStarryClient, onStarryAuthChange} from './session';
 import {StarryError} from './starry-client';
 import {OwnerPricingPanel} from './OwnerPricingPanel';
 
@@ -25,9 +25,13 @@ export function StarryAccountPanel(){
  const [passkeys,setPasskeys]=useState<{id:string;name:string;created_at:number;last_used_at:number|null}[]>([]);
  const [error,setError]=useState('');
  const refresh=useCallback(async()=>{
-  const config=await readAppConfig();
-  setStatus(config.kind==='active'?'已連線，中央會員登記有效':config.message);
-  if(config.kind!=='active')return;
+  const config=await officialStarryClient().checkApp(appConfig.expo.version);
+  const gateMessage=config.state==='ok'?'已連線，中央會員登記有效':
+    config.state==='unreachable'?'中央會員暫時無法連線':
+    config.state==='maintenance'?'Clock 目前維護中':
+    config.state==='killed'?'Clock 已停用，請聯絡客服':'請更新 Clock App';
+  setStatus(gateMessage);
+  if(config.state!=='ok')return;
   const member=await loadMember();
   setMe(member);setDisplayName(member?.profile.display_name??'');
   if(member){
@@ -46,6 +50,7 @@ export function StarryAccountPanel(){
   }else {setBattery('');setPasskeys([]);}
  },[]);
  useEffect(()=>{void refresh().catch(()=>setStatus('中央會員暫時無法連線'));},[refresh]);
+ useEffect(()=>onStarryAuthChange(()=>{void refresh().catch(()=>{});}),[refresh]);
  async function action(task:()=>Promise<void>){
   if(busy)return;
   setBusy(true);setError('');
@@ -139,7 +144,7 @@ export function StarryAccountPanel(){
         <OwnerPricingPanel userId={me.user_id}/>
         <Text style={s.info}>月額度跨已授權 Starry Apps 共用，適用核准的 AI 與非 AI 服務；每月 1 日（台灣時間）恢復。此頁僅查詢，不會扣額。</Text>
       </View>:null}
-      <Btn label="登出" onPress={()=>{void action(async()=>{await signOut();setMe(null);});}}/>
+      <Btn label="登出所有繁星 App" onPress={()=>{void action(async()=>{await signOut();setMe(null);});}}/>
       <Btn label="登出所有裝置" onPress={()=>{void action(async()=>{if(await confirmAction('登出所有裝置','這會使全部 Starry ID 裝置的登入狀態失效。')){await signOutEverywhere();setMe(null);}});}}/>
       <Btn danger label="永久刪除 Starry 會員帳號" onPress={()=>{void deleteSelf();}}/>
     </>}
