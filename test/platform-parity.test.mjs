@@ -20,7 +20,7 @@ test('native and web use the latest owner-approved Battery name and monthly cons
  assert.ok(guide.includes(officialName)&&guide.includes(officialDefinition));
 });
 test('both platforms show the same authorized member balance fields without client-side deduction',()=>{
- assert.ok(native.includes('readBattery(token)'), 'native missing Starry member Battery GET');
+ assert.ok(native.includes("('GET','/v1/me/battery')"), 'native missing official SDK member Battery GET');
  assert.ok(web.includes("request('GET','/v1/me/battery'"), 'web missing official SDK member Battery GET');
  for(const key of ['allowance','used','reserved','remaining','period']){
   assert.ok(native.includes('bal.'+key),'native missing '+key);
