@@ -62,3 +62,26 @@ test('2026-11-07.9 integration: iOS and Web show quantum, permanent deletion and
  assert.ok(paths['/v1/auth/passkey'],'contract must describe central passkeys');
  assert.ok(paths['/v1/me/passkeys'],'contract must include member passkey management');
 });
+
+
+test('Expo SDK migration keeps existing member sessions and does not duplicate token refresh',async()=>{
+ const [session,client]=await Promise.all([
+  read('apps/clock/src/auth/session.ts'),
+  read('apps/clock/src/auth/starry-client.ts')
+ ]);
+ assert.match(session,/new StarryClient\(/);
+ assert.match(session,/if\(key==='starry\.refresh\.clock'\)return REFRESH;/,'existing signed-in devices must retain their refresh token');
+ assert.match(session,/starry\.signInWithRelay/);
+ assert.match(session,/starry\.beginRelayRedirect/);
+ assert.match(session,/starry\.completeRelayRedirect/);
+ assert.match(session,/starry\.getAccessToken\(\)/);
+ assert.match(session,/starry\.refresh\(\)/);
+ assert.match(session,/SecureStore\.deleteItemAsync\(legacyAccess\)/,'obsolete on-disk access tokens must be purged');
+ assert.doesNotMatch(session,/async function rotateToken|async function saveTokens|let refreshPromise/, 'do not keep a competing refresh controller');
+ assert.match(client,/export class StarryClient/);
+ assert.match(client,/private refreshing: Promise<string \| null> \| null/);
+ assert.match(client,/async signInWithPasskey\(\)/);
+ assert.match(client,/async registerPasskey\(/);
+ assert.match(client,/async checkApp\(/);
+ assert.doesNotMatch(client,/sbk_[A-Za-z0-9_-]{43}/);
+});
