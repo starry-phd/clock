@@ -564,7 +564,9 @@ webAction('editMember',async()=>{
  await loadMemberWebUI();
 });
 webAction('deleteMember',async()=>{
- if(!confirm('確定立即永久刪除 Starry 會員帳號？無法撤回，且不會自動取消 App Store／Google Play 訂閱。'))return;
+ const confirmation=prompt('永久刪除 Starry 會員帳號無法復原，也不會自動取消商店訂閱。請輸入 DELETE：');
+ if(confirmation!=='DELETE')return;
+ if(!confirm('再次確認：立即永久刪除 Starry 會員帳號？'))return;
  await requireWebSdk().deleteAccount();
  logoutWebLocal();
 });
