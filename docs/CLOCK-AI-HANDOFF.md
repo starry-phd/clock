@@ -97,3 +97,14 @@
 - **實際已執行**：Cloudflare 帳號中的 `clock-app-db-staging`（D1 `ae8f940b-c4d0-4df1-af55-bb4b6c8666bb`）成功套用 `0004_free_preset_slots.sql`；唯讀驗證 `clock_free_presets` 表存在，原 `clock_presets`、`clock_requests` 均仍為 0。
 - **沒有執行**：正式 Clock D1 migration、正式或 staging Worker 程式部署、Starry ID 的程式／D1／管理設定修改、Battery Secret 更新、扣電池。既有兩環境 Battery 總開關仍維持已知的 `false`，未重新更動。
 - **下一步**：待 CI 通過，以相同 PR 原始碼部署 `clock-api-staging` 並驗證免費同步 API；啟用 staging 中央扣量前仍須後端 Secret 與授權測試會員，且需 Owner 透過管理 API 啟用 staging 費率；正式版不部署。
+
+### 2026-11-07.12｜最新中央串接指令與 Clock PR #15
+
+- 本輪依據 **2026-11-07.12**（台灣時間 2026-11-07 22:40）與 GitHub `starry-phd/id` 最新 `docs/integration-guide.md` 第 12、13、13.5 節。正式 11 項差異、平台限制與驗收門檻：**[STARRY-ID-2026-11-07.12-AUDIT.md](STARRY-ID-2026-11-07.12-AUDIT.md)**。
+- 更新了官方 `sdk/starry-client.ts`（Expo 原始 TS）與 `sdk/starry-sdk.ts`（Clock API 原始 TS），Web 由官方 TS 產生自家 `/starry-client.js` 並隨 Cloudflare Worker 綑綁（CSP 僅本網域）；既有 Refresh Token 儲存鍵兼容，重複的 Web Token Refresh 已移除。更新官方 OpenAPI 3.1，gitleaks 與中央版本相同。
+- iOS 新增 Keychain Access Group `$(AppIdentifierPrefix)phd.starry.sso`（不設定 Apple Team ID），用 `sharedStorage` 串官方 `syncDeviceSignIn()`；啟動、回到前景與登入狀態改變會重新同步資料。**目前是已實作／未實機驗收；其餘 App 必須採同一個 group/service**。
+- Android 裝置共用登入尚有明確跨 Repo 障礙：Expo SecureStore 為私有儲存，沒有同簽章的全生態系 Provider／Account 無法安全共享；各 App 的 Play signing 和 EAS signing 不一定相同。**不可把單 App SDK 上線宣稱 Android 已完成全 App SSO。**
+- Passkey（原生與 Web）已沿用原有 PR #15 修正；原生 InvalidStateError 的白話提醒、找不到 Passkey 的登入替代方式已補上。業主回報 Clock Play 簽章指紋已填 Admin Lite；**EAS 測試 APK 的實際簽章仍可能需要另填**。
+- 新增 Clock Battery 的中央維護 503 `SERVICE_UNAVAILABLE` 明確處理，沒有啟動計費；會員帳號永久刪除兩端都必須手動輸入 `DELETE` 再確認。
+- **查證證據**：GitHub Actions `Starry ID clock registration` 工作使用 `curl GET https://id.starry.phd/v1/apps/clock/config`，回應通過 `app_id=clock`、`status=active`、`min_version=0.0.0` 的驗證。這只驗證中央公開登記，不是端到端登入／扣量測試。
+- staging Clock D1 已套 0004，尚未部署新版 Worker；正式未合併 PR、未改 Worker、未開扣量。正式部署需經業主核准。
