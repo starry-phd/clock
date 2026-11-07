@@ -28,8 +28,8 @@ function translate(error:unknown):never {
  if(['NotSupported','NotSupportedError','BadConfiguration','SecurityError'].includes(code))
   throw new StarryError(0,'PASSKEY_UNSUPPORTED','請確認裝置與 Starry ID 網域／Android 憑證設定');
  if(code==='NoCredentials')
-  throw new StarryError(0,'PASSKEY_NONE','這台裝置目前沒有適用的通行密鑰');
- if(code==='CredentialAlreadyExists')
+  throw new StarryError(0,'PASSKEY_NONE','找不到通行密鑰，請改用 Apple 或 Google 登入');
+ if(code==='InvalidStateError'||code==='CredentialAlreadyExists')
   throw new StarryError(0,'PASSKEY_EXISTS','這台裝置已註冊相同的通行密鑰');
  throw new StarryError(0,'PASSKEY_FAILED',e?.message??'通行密鑰驗證失敗');
 }
