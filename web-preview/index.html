@@ -47,8 +47,8 @@ body.fullscreen #app{max-width:none}body.theater header,body.theater .mode-toggl
 <button type="button" id="linkApple" class="icon-btn hidden">綁定 Apple 登入</button>
 <button type="button" id="logoutMember" class="icon-btn hidden">登出</button>
 <button type="button" id="logoutAllMember" class="icon-btn hidden">登出所有裝置</button>
-<button type="button" id="undoDelete" class="icon-btn hidden">撤回刪除申請</button>
-<button type="button" id="deleteMember" class="icon-btn hidden" style="color:var(--red)">申請刪除會員帳號</button>
+<button type="button" id="deleteMember" class="icon-btn hidden" style="color:var(--red)">永久刪除會員帳號</button>
+<button type="button" id="contactSupport" class="icon-btn">聯絡客服</button>
 </div><p><a href="https://id.starry.phd/terms" target="_blank" rel="noopener noreferrer">服務條款</a> · <a href="https://id.starry.phd/privacy" target="_blank" rel="noopener noreferrer">隱私權政策</a></p><p><a href="https://id.starry.phd/account" target="_blank" rel="noopener noreferrer">開啟 Starry ID 會員資料／頭像管理</a></p><p class="note">倒數功能不需登入。登入使用 Starry 瀏覽器中繼；App 不保管 Google、Apple 密碼。</p></div></div>
 <p id="formError" class="note" style="color:var(--red)" role="alert"></p><div class="modal-actions"><button id="cancel" class="large-btn">取消</button><button id="save" class="large-btn primary">儲存</button></div><button id="delete" class="danger hidden">刪除此用途</button>
 </div></div>
@@ -221,7 +221,7 @@ function setMemberButtons(member){
  const show=Boolean(member);
  for(const id of ['editMember','linkGoogle','linkApple','logoutMember','logoutAllMember','deleteMember'])$(id).classList.toggle('hidden',!show||member?.status==='pending_deletion'||member?.consent?.required);
  $('consent').classList.toggle('hidden',!member?.consent?.required);
- $('undoDelete').classList.toggle('hidden',member?.status!=='pending_deletion');
+ // The current central API permanently deletes immediately; no undo period.
  $('accountUser').textContent=member?(member.profile?.display_name||'繁星會員')+' · '+member.user_id:'未登入（倒數仍可使用）';
 }
 
@@ -297,7 +297,9 @@ async function loadMemberWebUI(){
  try {
    const result=await webAuthorized(t=>starryReq('/v1/me/battery',{},t));
    const bal=result.balance;
-   $('batteryBalance').textContent='本月 '+bal.period+'｜額度 '+bal.allowance+' 顆｜已用 '+bal.used+' 顆｜預留 '+bal.reserved+' 顆｜剩餘 '+bal.remaining+' 顆';
+   const quantum=result.quantum;
+   $('batteryBalance').textContent='本月 '+bal.period+'｜額度 '+bal.allowance+' 顆｜已用 '+bal.used+' 顆｜預留 '+bal.reserved+' 顆｜剩餘 '+bal.remaining+' 顆'
+    +(quantum?'｜此 App 量子電池餘額 '+quantum.balance+' 顆（可用 '+quantum.available+' 顆）':'');
  }catch{
    $('batteryBalance').textContent='額度暫時無法讀取，不影響免費倒數計時。';
  }
@@ -376,11 +378,17 @@ webAction('editMember',async()=>{
  await loadMemberWebUI();
 });
 webAction('deleteMember',async()=>{
- if(!confirm('申請刪除 Starry 會員帳號？7 天內可撤回，且不會取消訂閱。'))return;
+ if(!confirm('確定立即永久刪除 Starry 會員帳號？無法撤回，且不會自動取消 App Store／Google Play 訂閱。'))return;
  await webAuthorized(t=>starryReq('/v1/me/deletion',{method:'POST',body:qs({confirm:true})},t));
  logoutWebLocal();
 });
-webAction('undoDelete',async()=>{await webAuthorized(t=>starryReq('/v1/me/deletion',{method:'DELETE'},t));await loadMemberWebUI()});
+webAction('contactSupport',()=>{
+ const version='1.1.1 (Web)';
+ // Browsers do not expose a reliable hardware model; send platform only.
+ const device=navigator.userAgentData?.platform||navigator.platform||'Web browser';
+ const url=STAR+'/support?app_id=clock&app_version='+encodeURIComponent(version)+'&device='+encodeURIComponent(device);
+ window.open(url,'_blank','noopener,noreferrer');
+});
 void completeWebRelay().then(()=>loadMemberWebUI()).catch(()=>{});
 
 read();reset();renderPresets();summary();void showPublicPricing();setInterval(tick,100);drawMode();if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
