@@ -11,11 +11,11 @@ import {
   ClockPreset, DEFAULT_PRESETS, formatCountdown, formatLocalClock,
   newTimer, pauseTimer, sanitizePresets, startTimer, tickTimer, TimerSnapshot
 } from '@clock/core';
-import {readAppConfig} from '@clock/auth-contract';
+import appConfig from '../app.json';
 import {StarryAccountPanel} from '../src/auth/StarryAccountPanel';
 import {loadClockPricing,createChargedPreset,readCloudPresets,editCloudPreset,removeCloudPreset,
   initializeFreePresets,addFreePreset,editFreePreset,removeFreePreset, type FreePreset} from '../src/auth/clockApi';
-import {loadMember} from '../src/auth/session';
+import {loadMember,officialStarryClient,onStarryAuthChange,syncStarryDeviceSignIn} from '../src/auth/session';
 
 const DATA_KEY = 'clock:preferences:v1';
 const COLORS = { bg:'#0B1220', panel:'#162338', muted:'#9CB1CA', fg:'#F7FAFF', mint:'#80F4D6', orange:'#FFCA75', line:'#29364A', danger:'#FF8E95' };
@@ -48,19 +48,22 @@ export default function ClockScreen() {
   const [saving,setSaving]=useState(false);
   const pendingCreate=useRef<{fingerprint:string;requestId:string;presetId:string}|null>(null);
   const [memberStatus,setMemberStatus]=useState('檢查中…');
+  const [authRevision,setAuthRevision]=useState(0);
   const [centralGate,setCentralGate]=useState<{blocked:boolean;message:string;notices:string[]}>({blocked:false,message:'',notices:[]});
   const checkCentralGate=useCallback(async()=>{
-    const result=await readAppConfig();
-    if(result.kind==='active'){
-      const time=Date.now();
-      const messages=(result.value.notices||[]).filter(n=>n.starts_at<=time&&n.ends_at>=time).map(n=>n.message);
-      setCentralGate({blocked:false,message:'',notices:messages});
+    const result=await officialStarryClient().checkApp(appConfig.expo.version);
+    if(result.state==='ok'){
+      setCentralGate({blocked:false,message:'',notices:result.notices.map(n=>n.message)});
       setMemberStatus('中央 App 已登記');
     }else{
-      // A network outage should not block the offline countdown.
-      const blocked=result.kind==='disabled'||result.kind==='update_required';
-      setCentralGate({blocked,message:result.message,notices:[]});
-      setMemberStatus(result.message);
+      // App Gate blocks new paid/member actions during maintenance/killed/update;
+      // an offline-only timer must keep working without network.
+      const blocked=result.state!=='unreachable';
+      const message=result.state==='maintenance'?'Clock 目前維護中，請稍後再試':
+        result.state==='killed'?'此 App 已停用，請聯絡客服':
+        result.state==='update_required'?'Clock 版本過舊，請更新 App':'中央會員暫時無法連線，免費計時不受影響';
+      setCentralGate({blocked,message,notices:[]});
+      setMemberStatus(message);
     }
   },[]);
   const [timer,setTimer]=useState<TimerSnapshot>(newTimer(DEFAULT_PRESETS[0].durationSeconds));
@@ -97,6 +100,7 @@ export default function ClockScreen() {
   useEffect(()=>{
     void checkCentralGate().catch(()=>setMemberStatus('中央會員暫時無法連線'));
   },[checkCentralGate]);
+  useEffect(()=>onStarryAuthChange(()=>setAuthRevision(x=>x+1)),[]);
   useEffect(()=>{
     const t=setInterval(()=>{
       const ms=Date.now();setNow(ms);
@@ -110,6 +114,7 @@ export default function ClockScreen() {
         const ms=Date.now(); const r=tickTimer(timerRef.current,ms,leadRef.current);
         setNow(ms);setTimerSync(r.timer);if(r.alert||r.finished)play();
         void checkCentralGate().catch(()=>{}); // Re-check on resume, not in a polling loop.
+        void syncStarryDeviceSignIn().then(()=>setAuthRevision(n=>n+1)).catch(()=>{});
       }
     });
     return()=>{clearInterval(t);s.remove()};
@@ -170,7 +175,7 @@ export default function ClockScreen() {
       }
     })().catch(()=>{}); // offline countdown never depends on login
     return()=>{live=false};
-  },[ready,settings,setTimerSync]);
+  },[ready,settings,authRevision,setTimerSync]);
 
   const showLegacyBackups=useCallback(async()=>{
     try{
