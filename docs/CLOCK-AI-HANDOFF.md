@@ -117,3 +117,12 @@
 - **Web 同一瀏覽器跨繁星網頁登入**：登錄 Relay／Passkey 成功後呼叫 `shareWebSignIn({returnUrl:'https://clock.starry.phd/'})`；每次頁面載入執行有 5 分鐘節流的 `syncWebSignIn`，callback 優先執行 `completeWebSsoCheck` 再處理 Relay；登出使用 `signOutWebEverywhere`。與手機原生 App 仍是兩個登入環境，不能稱為跨網頁／原生 SSO。
 - **Android 共用登入改列選做**：不為此阻擋上架／驗收；仍須另行核對 Passkey 之 Play 簽章與 EAS APK 不同指紋。
 - 正式 Cloudflare、Starry ID、商店未更動。PR #15 保持 Draft，CI 及 staging／實機驗收通過後再送人工核准；不能聲稱已實際完成裝置／瀏覽器端到端 SSO。
+
+### 2026-11-07.18｜新增會員頭像、可變會員編號與電池圖示（本次 PR）
+
+- 最新授權指令為 **2026-11-07.18（台灣時間 2026-11-08 01:25）**，完整 11 點更新比對與待驗收見 [STARRY-ID-2026-11-07.18-AUDIT.md](STARRY-ID-2026-11-07.18-AUDIT.md)；先前 2026-11-07.14 仍為舊版基準，不可將其當最新。
+- Expo iOS／Android 與 Web 新增同一 Starry ID 會員頭像：每次進入會員畫面讀取新 `/v1/me` 的 `profile.avatar_url`；null／圖片逾時／載入錯誤時顯示伺服器 `profile.initials`。不可在 Clock 自行上傳、複製或長期保留頭像。Web CSP 放行 **僅 `https://id.starry.phd`** 的簽章圖像、no-referrer。
+- Expo／Web 新增最新 `member_no`（兩位大寫國碼＋7～10 位數字）及公開頁 `https://id.starry.phd/<member_no>`、分享邀請 `https://id.starry.phd/Invite/<member_no>`。分享與開啟公開頁都重新讀 Starry `/v1/me`，以免使用者中央改號後仍傳舊網址。Expo 使用 RN `Share.share()`，Web 使用瀏覽器分享／複製備援。**`member_no` 絕不當 Clock DB 主鍵、檔名或綁定資料用，仍用 `user_id`。**
+- Expo 與 Web 的普通／量子電池、Owner 定價及提示文字改為中央統一圖示 `🔋`／`⚛️`；**沒有**變更實際計費價格、扣量行為、金鑰或資料。
+- 複製最新官方 `openapi/starry-id.v1.json` 到 Clock 合約，透過原 `pnpm codegen:starry` 產型別；Starry 官方前／後端 SDK 仍與目前來源一致，無須重新覆寫。加入 `test/clock-member-v18.test.mjs` 及 CI。
+- **部署邊界**：上一輪 Web v14 已部署正式 `clock.starry.phd` 並通過實際 HTTP 測試；此次 v18 仍只在 Draft PR #15。尚未更新 v18 的 staging／production Web、Clock API Worker 或 App Store／Google Play；正式 Battery `BATTERY_CHARGES_ENABLED=false`。
