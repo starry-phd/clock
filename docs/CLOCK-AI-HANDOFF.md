@@ -126,3 +126,13 @@
 - Expo 與 Web 的普通／量子電池、Owner 定價及提示文字改為中央統一圖示 `🔋`／`⚛️`；**沒有**變更實際計費價格、扣量行為、金鑰或資料。
 - 複製最新官方 `openapi/starry-id.v1.json` 到 Clock 合約，透過原 `pnpm codegen:starry` 產型別；Starry 官方前／後端 SDK 仍與目前來源一致，無須重新覆寫。加入 `test/clock-member-v18.test.mjs` 及 CI。
 - **部署邊界**：上一輪 Web v14 已部署正式 `clock.starry.phd` 並通過實際 HTTP 測試；此次 v18 仍只在 Draft PR #15。尚未更新 v18 的 staging／production Web、Clock API Worker 或 App Store／Google Play；正式 Battery `BATTERY_CHARGES_ENABLED=false`。
+
+### 2026-11-08.3｜主要顯示名稱、頭像路徑快取、電池公開欄位加碼
+
+- **最新串接指令**：2026-11-08.3（台灣時間 2026-11-08 03:10）。完整第六節 11 項差異及平台／測試／部署邊界見 [STARRY-ID-2026-11-08.3-AUDIT.md](STARRY-ID-2026-11-08.3-AUDIT.md)；先前 2026-11-07.18 版本只供歷史追溯。
+- **前／後端官方 SDK 沿用**，不重建會員登入；中央新版 `openapi/starry-id.v1.json` 已同步到 `contracts/starry-id.v1.json`，其中 `Profile.shown_name`、`DirectoryMember.shown_name` 已有正式 schema；型別仍由原有 `pnpm codegen:starry` 產生。
+- **Expo 與 Web** 所有會員標頭名稱改為中央 `profile.shown_name`，null 才用中央 `profile.initials`；保留原本中央 `display_name` 的姓名編輯，但不讓它覆蓋會員所選「主要顯示名稱」。Clock 尚無排行榜，不新增多會員資料 API。
+- **頭像**：Starry ID 的 `profile.avatar_url` 簽名一小時，允許同網域 `https://id.starry.phd` 的簽章圖片（相對／絕對路徑），邏輯快取 key 使用問號前 `URL.pathname`，不使用 `user_id`。Web 同一路徑在簽名更新時不重新下載、換路徑時更新圖片；Expo `Image` 的 React `key` 也採路徑而非會員 ID。App 前景／Web 前景及設定頁再讀 `GET /v1/me`，圖片失敗或空值退回中央 `initials`。未新增 Clock 自己的頭像磁碟快取或上傳 API。
+- **Battery 加碼**：會員公開更多「有內容欄位」可在 Starry ID 中央增加每月免費額度，但 Clock **不自行計算倍率、不設獎勵 UI／序號兌換畫面**，只顯示中央 `GET /v1/me/battery` 的現有 `balance`／`quantum` 欄位，維持 `🔋` 與 `⚛️` 固定圖示。
+- **測試**：`test/clock-member-v20261108.test.mjs` 新增 shown_name、頭像路徑變更與相同路徑新簽名、前景刷新、中央單一 Battery 額度測試；加入 GitHub CI。既有 v18／Passkey／Web SSO／gitleaks 持續執行。
+- **部署**：2026-11-08.3 僅在 Draft PR #15，**沒有部署新 Web Worker、沒有更新 Clock API、沒有合併 PR 或送審手機 App**。正式站仍是已上線的 v14；正式電池扣量仍為 OFF，中央 Starry ID 原始碼、設定與資料庫均未觸碰。
