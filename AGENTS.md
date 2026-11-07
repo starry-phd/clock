@@ -1,5 +1,7 @@
 # Clock 開發規則（對所有開發 AI 生效）
 
+> **接手前必讀最新交接：[docs/CLOCK-AI-HANDOFF.md](docs/CLOCK-AI-HANDOFF.md)**。本規則是長期開發原則；雲端完成度、阻礙與下一步以最新交接加即時驗證為準。
+
 ## 最高優先順序：業主最新 Battery 決議（2026-11-07）
 
 正式名稱：**繁星電池艙 Starry Battery**。
