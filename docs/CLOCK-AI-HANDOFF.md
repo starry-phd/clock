@@ -108,3 +108,12 @@
 - 新增 Clock Battery 的中央維護 503 `SERVICE_UNAVAILABLE` 明確處理，沒有啟動計費；會員帳號永久刪除兩端都必須手動輸入 `DELETE` 再確認。
 - **查證證據**：GitHub Actions `Starry ID clock registration` 工作使用 `curl GET https://id.starry.phd/v1/apps/clock/config`，回應通過 `app_id=clock`、`status=active`、`min_version=0.0.0` 的驗證。這只驗證中央公開登記，不是端到端登入／扣量測試。
 - staging Clock D1 已套 0004，尚未部署新版 Worker；正式未合併 PR、未改 Worker、未開扣量。正式部署需經業主核准。
+
+### 2026-11-07.14｜iPhone / Web 共用登入修正
+
+- **新基準是業主 2026-11-07.14（2026-11-07 23:25 台灣時間）**；完整 11 項審查與操作限制見 [STARRY-ID-2026-11-07.14-AUDIT.md](STARRY-ID-2026-11-07.14-AUDIT.md)；舊 .12 審查保留為歷史，遇衝突以 .14 為準。
+- 官方 `sdk/starry-client.ts` 已更新（新增 shareWebSignIn／syncWebSignIn／completeWebSsoCheck／signOutWebEverywhere）；OpenAPI 3.1 已同步。Web 由 `tools/build_web_sdk.mjs` 產生官方 SDK 的同源 JS，`tools/build_worker.py` 打包，PWA Cache 升級。
+- **iOS 跨 App Keychain**：由前版 `$(AppIdentifierPrefix)phd.starry.sso` 改為 v14 唯一固定 `$(AppIdentifierPrefix)phd.starry.shared`，放在 `ios.entitlements.keychain-access-groups` 首位且只保留此共用群組。使用已安裝的 Expo SecureStore 存取 `starry.sso`，`keychainService=starry-sso-v1`；Keychain 在未指定 accessGroup 時預設使用第一個已簽章 entitlement group。**不在 App 自行填 Apple Team ID**。其他繁星 iOS App 必須採相同 Keychain 項目，真機與 EAS 簽章驗收才算完成。
+- **Web 同一瀏覽器跨繁星網頁登入**：登錄 Relay／Passkey 成功後呼叫 `shareWebSignIn({returnUrl:'https://clock.starry.phd/'})`；每次頁面載入執行有 5 分鐘節流的 `syncWebSignIn`，callback 優先執行 `completeWebSsoCheck` 再處理 Relay；登出使用 `signOutWebEverywhere`。與手機原生 App 仍是兩個登入環境，不能稱為跨網頁／原生 SSO。
+- **Android 共用登入改列選做**：不為此阻擋上架／驗收；仍須另行核對 Passkey 之 Play 簽章與 EAS APK 不同指紋。
+- 正式 Cloudflare、Starry ID、商店未更動。PR #15 保持 Draft，CI 及 staging／實機驗收通過後再送人工核准；不能聲稱已實際完成裝置／瀏覽器端到端 SSO。
