@@ -58,7 +58,7 @@ body.fullscreen #app{max-width:none}body.theater header,body.theater .mode-toggl
  <button type="button" id="reloadPasskeys" class="icon-btn" style="margin-top:7px">重新整理通行密鑰</button>
  <div id="passkeyList" style="display:grid;gap:7px;margin-top:10px" aria-live="polite"></div>
 </div>
-<button type="button" id="logoutMember" class="icon-btn hidden">登出</button>
+<button type="button" id="logoutMember" class="icon-btn hidden">登出所有繁星 App（此瀏覽器網頁版）</button>
 <button type="button" id="logoutAllMember" class="icon-btn hidden">登出所有裝置</button>
 <button type="button" id="deleteMember" class="icon-btn hidden" style="color:var(--red)">永久刪除會員帳號</button>
 <button type="button" id="contactSupport" class="icon-btn">聯絡客服</button>
@@ -233,6 +233,7 @@ finally{saveBusy=false}
 
 /* Starry relay login: exactly https://clock.starry.phd/auth/done callback; fragment only. */
 const STAR='https://id.starry.phd',APPID='clock',REDIRECT='https://clock.starry.phd/auth/done';
+const WEB_SSO_RETURN='https://clock.starry.phd/'; // registered, fragment-free; never send tokens in this URL
 async function checkAppGate(){
  // Central official SDK checks min_version, killed, paused and visible notices.
  // No polling; offline-only countdown always remains usable.
@@ -326,6 +327,7 @@ async function loginWebPasskey(){
   if(gate.state!=='ok')throw Error('Clock 目前無法登入，請稍後再試');
   await requireWebSdk().signInWithPasskey();
   await loadMemberWebUI();
+  await requireWebSdk().shareWebSignIn({returnUrl:WEB_SSO_RETURN});
  }catch(e){const message=friendlyPasskeyError(e);if(message)throw Error(message);}
 }
 async function createWebPasskey(){
@@ -542,11 +544,18 @@ webAction('addPasskey',createWebPasskey);
 webAction('reloadPasskeys',reloadWebPasskeys);
 webAction('linkGoogle',()=>relayWeb('google','link'));webAction('linkApple',()=>relayWeb('apple','link'));
 webAction('logoutMember',async()=>{
- try{await requireWebSdk().signOut()}finally{logoutWebLocal()}
+ // Logs out this browser's Starry web apps, not native apps or other browsers.
+ try{await requireWebSdk().signOutWebEverywhere({returnUrl:WEB_SSO_RETURN});}
+ finally{logoutWebLocal();}
 });
 webAction('logoutAllMember',async()=>{
  if(!confirm('確定登出所有裝置嗎？'))return;
- await requireWebSdk().signOutEverywhere();logoutWebLocal()
+ try{await requireWebSdk().signOutEverywhere();}
+ finally{
+  logoutWebLocal();
+  // Also remove the web SSO cookie at Starry ID so this browser won't rejoin.
+  await requireWebSdk().signOutWebEverywhere({returnUrl:WEB_SSO_RETURN});
+ }
 });
 webAction('consent',async()=>{
  if(!webMember)return;
@@ -577,7 +586,38 @@ webAction('contactSupport',()=>{
  const url=STAR+'/support?app_id=clock&app_version='+encodeURIComponent(version)+'&device='+encodeURIComponent(device);
  window.open(url,'_blank','noopener,noreferrer');
 });
-void completeWebRelay().then(()=>loadMemberWebUI()).catch(()=>{});
+// Handle SSO results before OAuth results; both arrive in URL fragments.
+// All redirects use registered, fragment-free return URLs, never localStorage.
+async function startWebAuth(){
+ const client=requireWebSdk();
+ const ssoReturn=await client.completeWebSsoCheck();
+ if(ssoReturn!==null){
+  if(!ssoReturn)logoutWebLocal();
+  await loadMemberWebUI();
+  return; // do not immediately redirect back to /auth/sso/check
+ }
+ if(location.pathname==='/auth/done'){
+  const pending=sessionStorage.getItem(pendingKey);
+  let shouldShare=!pending;
+  if(pending){
+   try{shouldShare=JSON.parse(pending).operation!=='link';}catch{shouldShare=false}
+  }
+  await completeWebRelay();
+  await loadMemberWebUI();
+  if(shouldShare&&await client.restore()){
+   await client.shareWebSignIn({returnUrl:WEB_SSO_RETURN});
+  }
+  return;
+ }
+ await loadMemberWebUI();
+ try{
+  await client.syncWebSignIn({returnUrl:WEB_SSO_RETURN}); // official 5-minute throttle
+ }catch{
+  // SSO lookup failure is not permission to bypass central API authorization.
+  // Offline/countdown remain available; avoid retry loops.
+ }
+}
+void startWebAuth().catch(()=>{});
 
 read();reset();renderPresets();setMemberButtons(null);summary();void showPublicPricing();void checkAppGate();setInterval(tick,100);drawMode();if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 })();
