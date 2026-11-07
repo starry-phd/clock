@@ -30,7 +30,7 @@ test('Web PWA uses official StarryClient SDK for Passkey and session rotation',a
 });
 test('official Web SDK bundle exports StarryClient and WebAuthn adapter without network requests',async()=>{
  const code=await read('web-preview/starry-client.js');
- const sandbox={};
+ const sandbox={TextEncoder,TextDecoder,Uint8Array,ArrayBuffer,URLSearchParams};
  sandbox.globalThis=sandbox;
  runInNewContext(code,sandbox,{timeout:1000});
  assert.equal(typeof sandbox.StarrySDK?.StarryClient,'function');
