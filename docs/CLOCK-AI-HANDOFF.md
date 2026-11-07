@@ -83,3 +83,11 @@
 - 不產生新的無關簽章、不開啟私鑰、不啟動新的 EAS Build、不上架、不回寫 Starry ID／Play Console。沒有簽章 APK 或 EAS 存取權時**必須明確失敗，不得捏造指紋**。
 - **用途區分**：從 APK 擷取的是 Expo 安裝版的憑證指紋；Google Play 下載版通常由 Google 重新簽章，需要 Google Play Console「App integrity」中 **App signing key certificate SHA-256**，不可以拿 Expo AAB upload key 指紋冒充。
 - 目前此新 Workflow 尚在 Draft PR，未合併主分支；尚未執行，也**未取得任何真實 SHA-256 指紋**。必要前提為可存取已簽署的 EAS APK 或其直接下載網址。
+
+### 2026-11-07｜Android Passkey 指紋由業主確認登記、Clock 兩端接上 Passkey（PR #15）
+
+- 業主已在 Starry ID App Admin 後台完成 Android SHA-256 登記。**不將指紋、Admin 憑證、簽署私鑰或 Starry Battery Secret 複製到 App／Repo**。此確認是業主回報，尚未透過新 Android 安裝包驗證 WebAuthn Origin；Play 安裝版與 EAS Preview 簽章可能不同。
+- Web/PWA `web-preview/index.html`：新增「使用通行密鑰登入」、登入後建立／列出／刪除 Passkey；要求安全網域且瀏覽器支援 WebAuthn，將中央 `rpId=id.starry.phd` 的 challenge/base64url 轉為 WebAuthn ArrayBuffer，回傳憑證到中央 API。未支援時保留 Apple／Google 中繼登入；瀏覽器依賴 Starry ID 的 Related Origin Requests。
+- Expo iOS/Android：加入 `react-native-passkeys@0.4.2`（pnpm lockfile 與 npm SHA-512 integrity 固定）及惰性載入的 `nativePasskeyAdapter.ts`。通過官方 `StarryClient` 的 Passkey 登入／新增／列出／刪除 API；強制驗證 RP id，系統取消與未支援裝置有安全錯誤處理。iOS Associated Domain 維持 `webcredentials:id.starry.phd`。
+- 自動測試 `test/clock-passkey-parity.test.mjs` 已納入 CI，含 Web base64url/RP 轉換、登入備用、Native module/SDK 連接、不得放入中央 Secret，以及原有 Expo 型別檢查。**CI 通過不代表已在 iPhone／Android 安裝版完成 Passkey 實測**。
+- 待辦：取得已簽署 EAS iOS／Android 測試安裝包與真正裝置登入／註冊／移除結果，核對 Play signing 與 Expo preview 指紋是否分別登記，確認 AASA／Asset Links 與 Web ROR 真正生效。最新 SDK 另有可選擇的跨 App shared-storage 功能，尚未啟用，不可稱跨 App SSO 已上線。正式合併、上架與 Battery 扣量依原有門檻辦理。
