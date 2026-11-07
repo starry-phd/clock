@@ -67,3 +67,12 @@
 - **Clock 專用 D1 唯讀核對**（非中央資料庫）：`clock-app-db-staging` 的 `clock.preset_create`：**2 顆／次、enabled=0、version=2**；`clock-app-db`：**2 顆／次、enabled=1、version=9**。兩者 `clock_presets` 與 `clock_requests` 均為 0。故 staging 補金鑰後還須經過真正 Owner 身分驗權，從 Clock 自己的管理 API 開啟該功能，**不可直接繞過 Owner 修改 D1**。
 - 待業主安全配置 staging Secret、提供授權測試會員後，僅在 staging 由 Owner 啟用費率與 `BATTERY_CHARGES_ENABLED=true`，驗證至少：真實扣 X、中央與 Clock 對帳、餘額不足、上限、異常 release、冪等重播、權限、跨會員隔離。未過關則 staging 保持關閉、正式不部署。
 - Expo／Web 免費前 3 組跨裝置歸戶一致性仍是**正式扣量之前的獨立阻礙**，需先實作及驗收不丟失舊資料的遷移方案。
+
+### 第一輪續作：前三組免費用途會員歸戶（2026-11-07）
+
+- 在 PR #15 新增 Clock 專用 D1 migration `0004_free_preset_slots.sql`，獨立 `clock_free_presets` 表；**不變更中央 Starry ID 任何表格、授權資料或金鑰**。
+- `GET/POST /v1/presets/free`、`POST /v1/presets/free/init`、`PATCH/DELETE /v1/presets/free/:id`：按經驗證的 Starry user_id 隔離，首次同步使用單一 SQL 交易建立 1～3 組，後續版本衝突回 409，單一會員最多 3 組，免費及付費預設 ID 不得衝突；不觸發 Battery。
+- 在 Expo iOS/Android 與 Web/PWA 都加入：會員首次免費用途同步、遠端優先、原裝置不同用途留本機會員專屬備份、備份檢視及手動恢復、免費刪修及新增；登入前／網路中斷仍能免費計時。
+- 付費 POST 新請求必須先由後端確認會員免費雲端已有 3 組；否則回 `FREE_SLOTS_NOT_READY`，確保真正第 4 組才可能扣 X。已提交/保留請求沿用冪等重播，不被新增的檢查打斷。
+- 新增 `test/clock-free-sync.test.mjs`，並納入 CI：模擬會員隔離、首次同步不可覆寫、舊版本衝突、第三組刪除後免費補位、超過 3 組拒絕、未同步不得扣量。這是程式模擬測試，**不是已完成 staging D1 遷移或實機跨裝置驗收**。
+- 部署安全門檻：必須在 staging Clock D1 **先執行 migration 0004** 再部署這個分支的後端；現有正式版與 Starry ID 完全不動。正式仍不合併、不部署。
