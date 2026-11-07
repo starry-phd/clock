@@ -24,10 +24,29 @@ export async function verifyStarryJWT(token,jwks,now=Math.floor(Date.now()/1000)
   if(!ok)throw Error('invalid_signature');
   return claims;
 }
-export async function verifyAccessViaJWKS(accessToken,fetchFn=fetch){
+// Cache public keys briefly; unknown kid forces a fresh pull for key rotation.
+// Never cache or log tokens. A JWKS outage on cache miss fails closed.
+const JWKS_TTL_MS=5*60*1000;
+let jwksCache=null;
+let jwksUntil=0;
+async function readJWKS(fetchFn,force=false){
+  if(!force&&jwksCache&&Date.now()<jwksUntil)return jwksCache;
   const r=await fetchFn(ID+'/.well-known/jwks.json',{headers:{Accept:'application/json'},signal:AbortSignal.timeout(8000)});
   if(!r.ok)throw Error('starry_jwks_unavailable');
-  return verifyStarryJWT(accessToken,await r.json());
+  const keys=await r.json();
+  if(!Array.isArray(keys?.keys))throw Error('starry_jwks_invalid');
+  jwksCache=keys;
+  jwksUntil=Date.now()+JWKS_TTL_MS;
+  return keys;
+}
+export async function verifyAccessViaJWKS(accessToken,fetchFn=fetch){
+  const keys=await readJWKS(fetchFn);
+  try{return await verifyStarryJWT(accessToken,keys);}
+  catch(error){
+    if(error?.message!=='unknown_key')throw error;
+    // A rotated central signing key may arrive before the cache expires.
+    return verifyStarryJWT(accessToken,await readJWKS(fetchFn,true));
+  }
 }
 async function batteryFetch(path,body,token,key,fetchFn){
   const headers={Accept:'application/json','x-starry-app-key':key};
