@@ -162,7 +162,7 @@ export async function handleClock(request,env,verify){
     const updated=await freeRows();
     return json({status:'created',presets:updated},201,origin);
   }
-  const freeMatch=/^\\/v1\\/presets\\/free\\/([A-Za-z0-9_-]{1,80})$/.exec(path);
+  const freeMatch=/^\/v1\/presets\/free\/([A-Za-z0-9_-]{1,80})$/.exec(path);
   if(freeMatch&&method==='PATCH'){
     const input=await body(request);
     if(!timerName(input.name)||!Number.isInteger(input.duration_seconds)||input.duration_seconds<1||
