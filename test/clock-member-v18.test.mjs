@@ -20,7 +20,7 @@ test('v18: official generated OpenAPI describes Starry avatar, initials, mutable
 });
 test('v18: Expo and Web use exact fresh avatar URL, server initials, no independent avatar store',()=>{
  assert.match(native,/await loadMember\(\)/,'reload member data on account entry');
- assert.match(native,/me\.profile\.avatar_url/,'Expo must use signed avatar returned by Starry ID');
+ assert.match(native,/centralAvatar\(me\?\.profile\?\.avatar_url\)/,'Expo must use signed avatar returned by Starry ID');
  assert.match(native,/me\.profile\.initials/,'Expo must use server-calculated initials');
  assert.match(native,/onError=\{\(\)=>setAvatarFailed\(true\)\}/,'Expo must fall back when avatar fails');
  assert.match(web,/await requireWebSdk\(\)\.me\(\)/,'Web refreshes member from central');
@@ -56,7 +56,7 @@ test('v18: all platforms distinguish ordinary and quantum Battery pictograms',()
  assert.match(web,/🔋 Clock 超級管理員/);
 });
 test('v18: Web member header displays centrally supplied initials when avatar is absent',()=>{
- const begin=web.indexOf('function setMemberButtons(member){');
+ const begin=web.indexOf('let displayedAvatarPath=null;');
  const end=web.indexOf('/* Passkey:',begin);
  assert.ok(begin>=0&&end>begin,'find Web account rendering code');
  const code=web.slice(begin,end);
@@ -77,7 +77,7 @@ test('v18: Web member header displays centrally supplied initials when avatar is
   referrerPolicy:'',alt:''};}};
  const member={user_id:'uuid-not-a-public-link',member_no:'TW0123456',status:'active',
   consent:{required:false},profile:{display_name:'測試會員',initials:'測',avatar_url:null}};
- const ctx={$:node,window:{isSecureContext:false},navigator:{},document,STAR:'https://id.starry.phd',webPasskeysSupported:()=>false};
+ const ctx={$:node,window:{isSecureContext:false},navigator:{},document,STAR:'https://id.starry.phd',URL,webPasskeysSupported:()=>false};
  runInNewContext(code+'\nsetMemberButtons(member);', {...ctx,member});
  assert.equal(node('memberNumber').textContent,'會員編號：TW0123456');
  assert.equal(node('publicProfile').href,'https://id.starry.phd/TW0123456');
