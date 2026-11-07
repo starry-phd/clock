@@ -1,7 +1,7 @@
 // Network-first HTML ensures member login updates are not stuck in an old PWA cache.
-const CACHE='clock-web-v1-6-safe-replace';
+const CACHE='clock-web-v20261108-shown-name';
 self.addEventListener('install', event=>event.waitUntil(
-  caches.open(CACHE).then(cache=>cache.addAll(['/','/manifest.webmanifest'])).then(()=>self.skipWaiting())
+  caches.open(CACHE).then(cache=>cache.addAll(['/','/manifest.webmanifest','/starry-client.js'])).then(()=>self.skipWaiting())
 ));
 self.addEventListener('activate', event=>event.waitUntil(
   caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())

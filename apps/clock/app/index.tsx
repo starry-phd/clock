@@ -11,9 +11,11 @@ import {
   ClockPreset, DEFAULT_PRESETS, formatCountdown, formatLocalClock,
   newTimer, pauseTimer, sanitizePresets, startTimer, tickTimer, TimerSnapshot
 } from '@clock/core';
-import {readAppConfig} from '@clock/auth-contract';
+import appConfig from '../app.json';
 import {StarryAccountPanel} from '../src/auth/StarryAccountPanel';
-import {loadClockPricing,createChargedPreset,readCloudPresets,editCloudPreset,removeCloudPreset} from '../src/auth/clockApi';
+import {loadClockPricing,createChargedPreset,readCloudPresets,editCloudPreset,removeCloudPreset,
+  initializeFreePresets,addFreePreset,editFreePreset,removeFreePreset, type FreePreset} from '../src/auth/clockApi';
+import {loadMember,officialStarryClient,onStarryAuthChange,syncStarryDeviceSignIn} from '../src/auth/session';
 
 const DATA_KEY = 'clock:preferences:v1';
 const COLORS = { bg:'#0B1220', panel:'#162338', muted:'#9CB1CA', fg:'#F7FAFF', mint:'#80F4D6', orange:'#FFCA75', line:'#29364A', danger:'#FF8E95' };
@@ -40,9 +42,30 @@ export default function ClockScreen() {
   const [settingSeconds,setSettingSeconds]=useState('10');
   const [ready,setReady]=useState(false);
   const [cloudIds,setCloudIds]=useState<string[]>([]);
+  const [freeSlots,setFreeSlots]=useState<FreePreset[]>([]);
+  const [freeSyncReady,setFreeSyncReady]=useState(false);
+  const [legacyBackups,setLegacyBackups]=useState<ClockPreset[]|null>(null);
   const [saving,setSaving]=useState(false);
   const pendingCreate=useRef<{fingerprint:string;requestId:string;presetId:string}|null>(null);
   const [memberStatus,setMemberStatus]=useState('檢查中…');
+  const [authRevision,setAuthRevision]=useState(0);
+  const [centralGate,setCentralGate]=useState<{blocked:boolean;message:string;notices:string[]}>({blocked:false,message:'',notices:[]});
+  const checkCentralGate=useCallback(async()=>{
+    const result=await officialStarryClient().checkApp(appConfig.expo.version);
+    if(result.state==='ok'){
+      setCentralGate({blocked:false,message:'',notices:result.notices.map(n=>n.message)});
+      setMemberStatus('中央 App 已登記');
+    }else{
+      // App Gate blocks new paid/member actions during maintenance/killed/update;
+      // an offline-only timer must keep working without network.
+      const blocked=result.state!=='unreachable';
+      const message=result.state==='maintenance'?'Clock 目前維護中，請稍後再試':
+        result.state==='killed'?'此 App 已停用，請聯絡客服':
+        result.state==='update_required'?'Clock 版本過舊，請更新 App':'中央會員暫時無法連線，免費計時不受影響';
+      setCentralGate({blocked,message,notices:[]});
+      setMemberStatus(message);
+    }
+  },[]);
   const [timer,setTimer]=useState<TimerSnapshot>(newTimer(DEFAULT_PRESETS[0].durationSeconds));
   const timerRef=useRef(timer);
   const leadRef=useRef(alertSeconds);
@@ -75,10 +98,9 @@ export default function ClockScreen() {
     AsyncStorage.setItem(DATA_KEY,JSON.stringify({presets,selectedId,alertSeconds,muted})).catch(()=>{});
   },[ready,presets,selectedId,alertSeconds,muted]);
   useEffect(()=>{
-    let live=true;
-    readAppConfig().then(result=>{if(live)setMemberStatus(result.kind==='active'?'中央 App 已登記':result.message)}).catch(()=>{if(live)setMemberStatus('中央會員暫時無法連線')});
-    return()=>{live=false};
-  },[]);
+    void checkCentralGate().catch(()=>setMemberStatus('中央會員暫時無法連線'));
+  },[checkCentralGate]);
+  useEffect(()=>onStarryAuthChange(()=>setAuthRevision(x=>x+1)),[]);
   useEffect(()=>{
     const t=setInterval(()=>{
       const ms=Date.now();setNow(ms);
@@ -91,30 +113,79 @@ export default function ClockScreen() {
       if(state==='active'){
         const ms=Date.now(); const r=tickTimer(timerRef.current,ms,leadRef.current);
         setNow(ms);setTimerSync(r.timer);if(r.alert||r.finished)play();
+        void checkCentralGate().catch(()=>{}); // Re-check on resume, not in a polling loop.
+        void syncStarryDeviceSignIn().then(()=>setAuthRevision(n=>n+1)).catch(()=>{});
       }
     });
     return()=>{clearInterval(t);s.remove()};
-  },[play,setTimerSync]);
+  },[play,setTimerSync,checkCentralGate]);
 
-  // Merge server-authoritative charged presets on the same Starry user_id.
-  // Existing device presets are preserved; they are grandfathered and not back-charged.
+  // Cloud is authoritative for a signed-in member's three free slots + paid extras.
+  // If old local presets differ, back them up before switching to the cloud copy.
+  // Offline and unsigned-in timers keep working exactly as before.
   useEffect(()=>{
     if(!ready)return;
     let live=true;
-    readCloudPresets().then(({presets:remote})=>{
+    setFreeSyncReady(false);
+    void (async()=>{
+      const {presets:remote}=await readCloudPresets();
       if(!live)return;
       setCloudIds(remote.map(p=>p.id));
-      setPresets(old=>{
-        const current=new Set(old.map(p=>p.id));
-        const additions=remote.filter(p=>!current.has(p.id)).map(p=>({
-          id:p.id,name:p.name,durationSeconds:p.durationSeconds
-        }));
-        return additions.length?sanitizePresets([...old,...additions]):old;
-      });
-    }).catch(()=>{}); // login optional; offline clock must still work.
+      const member=await loadMember();
+      if(!member||!live)return;
+      const oldOwner=await AsyncStorage.getItem('clock:free-owner:v1');
+      const saved=presetsRef.current;
+      const remoteIds=new Set(remote.map(p=>p.id));
+      const localFree=oldOwner&&oldOwner!==member.user_id
+        ? DEFAULT_PRESETS
+        : saved.filter(p=>!remoteIds.has(p.id)).slice(0,3);
+      const seed=localFree.length?localFree:DEFAULT_PRESETS;
+      let free;
+      try{free=(await initializeFreePresets(seed)).presets;}catch{
+        // Older deployed API / temporary outage: preserve all local timers,
+        // and continue to merge the separately stored paid timers.
+        if(live)setPresets(old=>{
+          const existing=new Set(old.map(p=>p.id));
+          return sanitizePresets([...old,...remote.filter(p=>!existing.has(p.id))]);
+        });
+        return;
+      }
+      if(!live)return;
+      const canonical:ClockPreset[]=[...free.map(p=>({id:p.id,name:p.name,durationSeconds:p.durationSeconds})),...remote];
+      const known=new Set(canonical.map(p=>p.id));
+      const legacy=saved.filter(p=>!known.has(p.id));
+      if(legacy.length){
+        const backupKey='clock:legacy-free-backup:v2:'+(oldOwner||member.user_id);
+        const existing=await AsyncStorage.getItem(backupKey);
+        const prior:ClockPreset[]=existing?sanitizePresets(JSON.parse(existing)):[];
+        const seen=new Set(prior.map(p=>p.id));
+        await AsyncStorage.setItem(backupKey,JSON.stringify([...prior,...legacy.filter(p=>!seen.has(p.id))]));
+      }
+      await AsyncStorage.setItem('clock:free-owner:v1',member.user_id);
+      if(!live)return;
+      setFreeSlots(free);
+      setFreeSyncReady(true);
+      const next=sanitizePresets(canonical);
+      setPresets(next);
+      const select=next.find(p=>p.id===selectedRef.current)||next[0];
+      // Synchronizing metadata must not interrupt an active countdown.
+      if(select&&select.id!==selectedRef.current){
+        setSelectedId(select.id);
+        setTimerSync(newTimer(select.durationSeconds));
+      }
+    })().catch(()=>{}); // offline countdown never depends on login
     return()=>{live=false};
-  },[ready,settings]);
+  },[ready,settings,authRevision,setTimerSync]);
 
+  const showLegacyBackups=useCallback(async()=>{
+    try{
+      const memberId=await AsyncStorage.getItem('clock:free-owner:v1');
+      if(!memberId){Alert.alert('尚未完成雲端同步','登入 Starry ID 並同步後，才會建立會員專屬備份。');return;}
+      const raw=await AsyncStorage.getItem('clock:legacy-free-backup:v2:'+memberId);
+      const parsed=raw?JSON.parse(raw):[];
+      setLegacyBackups(Array.isArray(parsed)?parsed.filter(p=>p&&typeof p.id==='string'&&typeof p.name==='string'&&Number.isInteger(p.durationSeconds)&&p.durationSeconds>=1&&p.durationSeconds<=86399):[]);
+    }catch{Alert.alert('備份無法讀取','裝置舊用途仍保留在原本的本機備份中。');}
+  },[]);
   const choose=useCallback((p:ClockPreset)=>{setSelectedId(p.id);setTimerSync(newTimer(p.durationSeconds));},[setTimerSync]);
   const toggle=useCallback(()=>{
     const cur=timerRef.current;
@@ -132,12 +203,12 @@ export default function ClockScreen() {
     if(!editor.id&&presets.length>=50){Alert.alert('已達上限','最多儲存 50 組用途。');return;}
     setSaving(true);
     try{
-      if(!editor.id&&presets.length>=3){
+      if(!editor.id&&presets.length>=3&&(!freeSyncReady||freeSlots.length>=3)){
         const p=(await loadClockPricing()).features.find(x=>x.feature==='clock.preset_create');
-        if(!p||!p.enabled||!p.available){Alert.alert('電池服務尚未開放','暫時無法以電池新增第 4 組。你可在這個視窗下方免費選擇一組既有用途取代，不增加計時器總數，也不扣電池。');return;}
+        if(!p||!p.enabled||!p.available){Alert.alert('🔋 電池服務尚未開放','暫時無法以 🔋 普通電池新增第 4 組。你可免費取代既有用途，不增加計時器總數，也不扣量。');return;}
         const accepted=await new Promise<boolean>(resolve=>Alert.alert(
-          '確認消耗繁星電池',
-          '新增這一組計時器需扣 '+p.units+' 顆電池。每月額度跨 Starry Apps 共用；只有新增成功才扣。',
+          '🔋 確認消耗繁星電池',
+          '新增這一組計時器需消耗 🔋 '+p.units+' 顆普通電池。每月額度跨 Starry Apps 共用；只有新增成功才扣。',
           [{text:'取消',style:'cancel',onPress:()=>resolve(false)},{text:'確認新增',onPress:()=>resolve(true)}],
           {cancelable:false}
         ));
@@ -149,6 +220,14 @@ export default function ClockScreen() {
         await createChargedPreset(next,requestId,p.units);
         pendingCreate.current=null;
         setCloudIds(old=>[...old,id]);
+      }else if(!editor.id&&freeSyncReady){
+        // A free slot remains free even when this member already has paid extras.
+        const result=await addFreePreset(next);
+        setFreeSlots(result.presets);
+      }else if(editor.id&&freeSyncReady&&freeSlots.some(p=>p.id===editor.id)){
+        const existing=freeSlots.find(p=>p.id===editor.id)!;
+        const result=await editFreePreset({...existing,...next});
+        setFreeSlots(result.presets);
       }else if(editor.id&&cloudIds.includes(editor.id)){
         await editCloudPreset(next);
       }
@@ -156,7 +235,7 @@ export default function ClockScreen() {
       setPresets(updated);choose(next);setEditor(null);
     }catch(e){Alert.alert('無法儲存',(e as Error).message||'新增失敗，未完成扣量確認。');}
     finally{setSaving(false);}
-  },[editor,presets,choose,cloudIds,saving]);
+  },[editor,presets,choose,cloudIds,saving,freeSyncReady,freeSlots]);
   // Safe fallback when central Battery charging is unavailable:
   // explicitly replace a selected existing preset; never create a fourth or charge.
   const replaceFree=useCallback((target:ClockPreset)=>{
@@ -168,12 +247,16 @@ export default function ClockScreen() {
     }
     const next={id:target.id,name,durationSeconds:minutes*60+seconds};
     Alert.alert('免費取代計時器',
-      '確定以「'+name+'」取代「'+target.name+'」？不會增加第 4 組，也不會消耗任何電池。',
+      '確定以「'+name+'」取代「'+target.name+'」？不會增加第 4 組，也不會消耗任何 🔋 普通電池。',
       [{text:'取消',style:'cancel'},{text:'確定取代',onPress:()=>{
         void (async()=>{
           setSaving(true);
           try{
-            if(cloudIds.includes(target.id))await editCloudPreset(next);
+            const free=freeSyncReady?freeSlots.find(p=>p.id===target.id):null;
+            if(free){
+              const result=await editFreePreset({...free,...next});
+              setFreeSlots(result.presets);
+            }else if(cloudIds.includes(target.id))await editCloudPreset(next);
             setPresets(old=>old.map(p=>p.id===target.id?next:p));
             choose(next);setEditor(null);
           }catch(e){Alert.alert('無法儲存',(e as Error).message||'既有用途未被修改');}
@@ -181,12 +264,16 @@ export default function ClockScreen() {
         })();
       }}]
     );
-  },[editor,saving,presets.length,cloudIds,choose]);
+  },[editor,saving,presets.length,cloudIds,choose,freeSyncReady,freeSlots]);
   const remove=useCallback(async()=>{
     if(!editor?.id||presets.length===1||saving)return;
     setSaving(true);
     try{
-      if(cloudIds.includes(editor.id)){
+      const free=freeSyncReady?freeSlots.find(p=>p.id===editor.id):null;
+      if(free){
+        const result=await removeFreePreset(free);
+        setFreeSlots(result.presets);
+      }else if(cloudIds.includes(editor.id)){
         await removeCloudPreset(editor.id); // no refund for prior consumed quota
         setCloudIds(old=>old.filter(x=>x!==editor.id));
       }
@@ -194,7 +281,7 @@ export default function ClockScreen() {
       setPresets(updated);if(selectedId===editor.id)choose(updated[0]);setEditor(null);
     }catch(e){Alert.alert('無法刪除',(e as Error).message||'請稍後再試');}
     finally{setSaving(false);}
-  },[editor,presets,selectedId,choose,cloudIds,saving]);
+  },[editor,presets,selectedId,choose,cloudIds,saving,freeSyncReady,freeSlots]);
   const saveSettings=()=>{
     const n=Number(settingSeconds);
     if(!Number.isInteger(n)||n<0||n>120){Alert.alert('提醒秒數','請輸入 0～120 秒。0 表示只在歸零時響鈴。');return;}
@@ -205,7 +292,16 @@ export default function ClockScreen() {
   const display=mode==='clock'?formatLocalClock(new Date(now)):formatCountdown(timer.remainingMs/1000);
   const selected=presets.find(x=>x.id===selectedId)||presets[0];
 
+  if(centralGate.blocked)return <View style={[styles.screen,{justifyContent:'center',padding:24,gap:16}]}>
+    <Text style={{color:COLORS.fg,fontSize:26,fontWeight:'800'}}>Clock 暫時無法使用</Text>
+    <Text style={{color:COLORS.muted,fontSize:17}}>{centralGate.message}</Text>
+    <Text style={{color:COLORS.muted}}>請等候業主恢復服務或更新 App；不會自動反覆請求中央服務。</Text>
+    <Button label="重新檢查" onPress={()=>{void checkCentralGate();}}/>
+  </View>;
   return <View style={styles.screen}>
+    {centralGate.notices.length>0?<View style={{padding:10,borderBottomWidth:1,borderColor:COLORS.line}}>
+      {centralGate.notices.map((message,i)=><Text key={i} style={{color:COLORS.orange}}>{message}</Text>)}
+    </View>:null}
     <View style={styles.top}>
       <Text style={styles.brand}>CLOCK</Text>
       <Pressable onPress={()=>{setSettingSeconds(String(alertSeconds));setSettings(true)}} accessibilityRole="button"><Text style={styles.topAction}>設定 ⚙</Text></Pressable>
@@ -235,14 +331,14 @@ export default function ClockScreen() {
 
     <Modal transparent visible={!!editor} animationType="fade" onRequestClose={()=>setEditor(null)}><KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS==='ios'?'padding':undefined}><View style={styles.modal}>
       <Text style={styles.modalTitle}>{editor?.id?'編輯用途':'新增用途'}</Text>
-      {!editor?.id&&<Text style={styles.note}>前 3 組免費。第 4 組起需先確認電池價格與扣量服務；服務暫停時，可在下方免費取代現有的一組用途。</Text>}
+      {!editor?.id&&<Text style={styles.note}>前 3 組免費。第 4 組起需先確認 🔋 普通電池價格與扣量服務；服務暫停時，可在下方免費取代現有的一組用途。</Text>}
       <Text style={styles.fieldLabel}>名稱</Text>
       <TextInput value={editor?.name||''} onChangeText={name=>setEditor(e=>e?{...e,name}:e)} maxLength={24} placeholder="例如：休息時間" placeholderTextColor={COLORS.muted} style={styles.input}/>
       <Text style={styles.fieldLabel}>倒數長度</Text>
       <View style={{flexDirection:'row',gap:10,alignItems:'center'}}><TextInput value={editor?.minutes||''} onChangeText={minutes=>setEditor(e=>e?{...e,minutes}:e)} keyboardType="number-pad" style={[styles.input,{flex:1}]} /><Text style={styles.fieldLabel}>分</Text><TextInput value={editor?.seconds||''} onChangeText={seconds=>setEditor(e=>e?{...e,seconds}:e)} keyboardType="number-pad" style={[styles.input,{flex:1}]} /><Text style={styles.fieldLabel}>秒</Text></View>
       <View style={styles.modalButtons}><Button label="取消" onPress={()=>setEditor(null)}/><Button label={saving?'處理中…':'儲存'} primary disabled={saving} onPress={()=>{void saveEditor();}}/></View>
       {!editor?.id&&presets.length>=3&&<View style={{gap:6,marginTop:12}}>
-        <Text style={styles.fieldLabel}>或免費取代既有用途（不新增、不扣電池）</Text>
+        <Text style={styles.fieldLabel}>或免費取代既有用途（不新增、不扣 🔋 普通電池）</Text>
         <ScrollView style={{maxHeight:116}} nestedScrollEnabled>
           {presets.map(p=><Pressable key={p.id} disabled={saving} accessibilityRole="button"
              onPress={()=>replaceFree(p)} style={{paddingVertical:9,paddingHorizontal:10,marginVertical:3,borderWidth:1,borderColor:COLORS.muted,borderRadius:8}}>
@@ -262,6 +358,19 @@ export default function ClockScreen() {
       <Text style={styles.note}>計時器在畫面開啟時運作最穩定。手機鎖屏或系統終止 App 時，不保證準時響鈴。</Text>
       <Text style={styles.fieldLabel}>Starry ID 中央會員：{memberStatus}</Text>
       <StarryAccountPanel />
+      <View style={{marginTop:12,gap:7}}>
+        <Button label="查看／恢復舊用途備份" onPress={()=>{void showLegacyBackups();}}/>
+        {legacyBackups!==null&&<Text style={styles.note}>{legacyBackups.length?'選擇備份用途後，再選「免費取代」即可恢復，不會直接扣 🔋 普通電池。':'此會員目前沒有舊用途備份。'}</Text>}
+        {legacyBackups!==null&&legacyBackups.length>0&&<ScrollView style={{maxHeight:110}}>
+          {legacyBackups.map(p=><Pressable accessibilityRole="button" key={p.id}
+            onPress={()=>{
+              setSettings(false);setLegacyBackups(null);
+              setEditor({id:null,name:p.name,minutes:String(Math.floor(p.durationSeconds/60)),seconds:String(p.durationSeconds%60)});
+            }} style={{paddingVertical:7}}>
+            <Text style={styles.add}>{p.name} · {formatCountdown(p.durationSeconds)}</Text>
+          </Pressable>)}
+        </ScrollView>}
+      </View>
       <View style={styles.modalButtons}><Button label="取消" onPress={()=>setSettings(false)}/><Button label="套用" onPress={saveSettings} primary/></View>
     </View></View></Modal>
   </View>;
