@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
-import {readAppConfig, readBattery, setConsent, updateProfile, deleteAccount, undoDeletion, StarryApiError} from '@clock/auth-contract';
+import {readAppConfig, readBattery, setConsent, updateProfile, deleteAccount, StarryApiError} from '@clock/auth-contract';
+import appConfig from '../../app.json';
 import type {RelayProvider, StarryMe} from '@clock/auth-contract';
 import {loadMember, startStarryRelay, signOut, signOutEverywhere, clearSession, withAccess} from './session';
 import {OwnerPricingPanel} from './OwnerPricingPanel';
@@ -31,7 +32,10 @@ export function StarryAccountPanel(){
    try{
     const value=await withAccess(token=>readBattery(token));
     const bal=value.balance;
-    setBattery(`本月 ${bal.period}｜額度 ${bal.allowance} 顆｜已用 ${bal.used} 顆｜預留 ${bal.reserved} 顆｜剩餘 ${bal.remaining} 顆`); // read-only; member-owned quota
+    const quantum=value.quantum;
+    setBattery(`本月 ${bal.period}｜額度 ${bal.allowance} 顆｜已用 ${bal.used} 顆｜預留 ${bal.reserved} 顆｜剩餘 ${bal.remaining} 顆`
+      +(quantum?`\n此 App 量子電池：餘額 ${quantum.balance} 顆｜可用 ${quantum.available} 顆`:''));
+    // Free allowance is shared; Quantum is restricted to this App. This is read-only.
    }catch{setBattery('額度暫時無法讀取');}
   }else setBattery('');
  },[]);
@@ -61,12 +65,15 @@ export function StarryAccountPanel(){
   await action(async()=>{await withAccess(t=>updateProfile(t,me.profile.version,{display_name:name}));});
  }
  async function deleteSelf(){
-  const ok=await confirmAction('申請刪除 Starry 帳號','確認申請刪除？帳號有 7 天撤回期，且不會自動取消其他 App 的訂閱。');
+  const ok=await confirmAction('永久刪除 Starry 帳號','確認後將立即永久刪除會員帳號，無法撤回，且不會自動取消 App Store／Google Play 訂閱。');
   if(!ok)return;
   await action(async()=>{await withAccess(t=>deleteAccount(t));await clearSession();setMe(null);});
  }
- async function undo(){
-  await action(async()=>{await withAccess(t=>undoDeletion(t));});
+ function contactSupport(){
+  const build=Platform.OS==='ios'?appConfig.expo.ios.buildNumber:Platform.OS==='android'?appConfig.expo.android.versionCode:'Web';
+  const model=String((Platform.constants as unknown as Record<string,unknown>).Model||Platform.OS);
+  const url=api+'/support?app_id=clock&app_version='+encodeURIComponent(appConfig.expo.version+' ('+build+')')+'&device='+encodeURIComponent(model);
+  void Linking.openURL(url);
  }
  return <ScrollView style={s.root} keyboardShouldPersistTaps="handled">
   <Text style={s.title}>Starry ID 中央會員</Text>
@@ -82,8 +89,7 @@ export function StarryAccountPanel(){
     <Text style={s.info}>會員 ID：{me.user_id}</Text>
     <Text style={s.info}>帳號狀態：{me.status}</Text>
     {me.status==='pending_deletion'?<>
-      <Text style={s.error}>此會員已申請刪除，7 天內可撤回。</Text>
-      <Btn label="撤回刪除申請" onPress={()=>{void undo();}}/>
+      <Text style={s.error}>此帳號仍顯示舊版刪除申請狀態，請聯絡 Starry ID 客服確認。</Text>
     </>:<>
       {me.consent.required?<View style={s.warning}>
        <Text style={s.warnText}>必須先同意最新服務條款與隱私權政策。</Text>
@@ -106,10 +112,11 @@ export function StarryAccountPanel(){
       </View>:null}
       <Btn label="登出" onPress={()=>{void action(async()=>{await signOut();setMe(null);});}}/>
       <Btn label="登出所有裝置" onPress={()=>{void action(async()=>{if(await confirmAction('登出所有裝置','這會使全部 Starry ID 裝置的登入狀態失效。')){await signOutEverywhere();setMe(null);}});}}/>
-      <Btn danger label="申請刪除 Starry 會員帳號" onPress={()=>{void deleteSelf();}}/>
+      <Btn danger label="永久刪除 Starry 會員帳號" onPress={()=>{void deleteSelf();}}/>
     </>}
    </View>}
   {busy?<Text style={s.info}>正在處理…</Text>:null}
+  <Btn label="聯絡客服" onPress={contactSupport}/>
   <Btn label="開啟 Starry ID 網頁帳號中心" onPress={()=>{void Linking.openURL(api+'/account');}}/>
  </ScrollView>;
 }
