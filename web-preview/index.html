@@ -22,12 +22,17 @@ body.fullscreen #app{max-width:none}body.theater header,body.theater .mode-toggl
 <body>
 <main id="app">
 <header><div class="brand">CLOCK</div><div class="header-actions"><button id="sound" class="icon-btn" title="切換響鈴">聲音：開</button><button id="full" class="icon-btn">⛶ 全螢幕</button><button id="settings" class="icon-btn">⚙ 設定</button></div></header>
+<p id="centralNotice" class="note hidden" role="status" style="border:1px solid var(--line);padding:10px;border-radius:10px;color:var(--alert)"></p>
 <div class="mode-toggle" role="tablist" aria-label="顯示模式"><button id="timerTab" class="tab active" role="tab" aria-selected="true">倒數計時</button><button id="clockTab" class="tab" role="tab" aria-selected="false">時鐘</button></div>
 <section class="hero" aria-live="off"><div class="purpose" id="purpose">休息時間</div><div id="digits" class="digits" role="timer" aria-label="剩餘時間">05:00</div><div class="unit" id="unit">分 : 秒</div><div class="track" id="track"><div id="fill" class="fill"></div></div></section>
 <div id="timerPanel"><div class="controls"><button id="start" class="large-btn primary">開始</button><button id="reset" class="large-btn">重設</button></div><div class="presets-head"><strong>快速切換用途</strong><button id="add" class="add">＋ 新增用途</button></div><p id="presetPriceInfo" class="note">計時器前 3 組免費；第 4 組起需先確認繁星電池消耗。</p><div id="presets" class="presets" aria-label="預設用途清單"></div></div>
 <p id="clockHint" class="hint hidden">超大時鐘 · 顯示時分秒</p>
 <div class="footer"><span id="summary">結束前 10 秒提醒 · 響鈴開啟 · 可離線使用</span><div id="notice" style="font-size:11px;margin-top:4px">開啟畫面時可準時提醒；鎖屏、背景分頁或系統省電可能延遲鈴聲</div></div>
 </main>
+<div id="appGate" class="hidden" role="alertdialog" aria-modal="true" aria-label="Clock 服務狀態" style="position:fixed;inset:0;z-index:50;background:var(--bg);padding:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center">
+ <h2>Clock 暫時無法使用</h2><p id="appGateMessage" role="alert">正在檢查服務狀態</p><p class="note">請等候業主恢復服務或更新 App；不會反覆自動重試。</p>
+ <button id="appGateRetry" class="large-btn" style="max-width:230px">重新檢查</button>
+</div>
 <button id="exitTheater" aria-label="離開全螢幕" type="button">離開全螢幕</button>
 <div class="dialog-backdrop hidden" id="overlay" role="presentation"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
 <h2 id="dialogTitle">新增用途</h2><div id="presetForm"><label class="label" for="presetName">用途名稱</label><input class="textinput" id="presetName" maxlength="24" placeholder="例如：休息時間"><span class="label">倒數時間</span><div class="time-fields"><input id="minutes" class="textinput" type="number" min="0" max="1439" inputmode="numeric" value="5" aria-label="分鐘"><span>分</span><input id="seconds" class="textinput" type="number" min="0" max="59" inputmode="numeric" value="0" aria-label="秒"><span>秒</span></div><p class="note">每一種用途可設定固定倒數長度，選取後即可開始。</p>
@@ -174,10 +179,28 @@ try{
  reset();persist();renderPresets();closeDialog();
 }catch(e){$('formError').textContent=e.message||'無法刪除';}
 finally{saveBusy=false}
-});$('overlay').addEventListener('click',e=>{if(e.target===$('overlay'))closeDialog()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDialog();if(e.code==='Space'&&!dialog&&mode==='timer'&&e.target===document.body){e.preventDefault();start()}});document.addEventListener('fullscreenchange',()=>document.body.classList.toggle('fullscreen',Boolean(document.fullscreenElement)));document.addEventListener('visibilitychange',()=>{tick();if(document.visibilityState==='visible')keepAwake()});
+});$('overlay').addEventListener('click',e=>{if(e.target===$('overlay'))closeDialog()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDialog();if(e.code==='Space'&&!dialog&&mode==='timer'&&e.target===document.body){e.preventDefault();start()}});document.addEventListener('fullscreenchange',()=>document.body.classList.toggle('fullscreen',Boolean(document.fullscreenElement)));document.addEventListener('visibilitychange',()=>{tick();if(document.visibilityState==='visible'){keepAwake();void checkAppGate();}});
 
 /* Starry relay login: exactly https://clock.starry.phd/auth/done callback; fragment only. */
 const STAR='https://id.starry.phd',APPID='clock',REDIRECT='https://clock.starry.phd/auth/done';
+async function checkAppGate(){
+ // Current central public config is authoritative; network failure does not stop offline timing.
+ try{
+  const response=await fetch(STAR+'/v1/apps/clock/config',{cache:'no-store'});
+  if(!response.ok)return;
+  const config=await response.json(),t=Date.now();
+  const parts=v=>String(v||'0.0.0').split(/[-+]/)[0].split('.').map(x=>Number(x)||0);
+  const cmp=(a,b)=>{const x=parts(a),y=parts(b);for(let i=0;i<3;i++)if((x[i]||0)!==(y[i]||0))return(x[i]||0)-(y[i]||0);return 0};
+  const tooOld=cmp('1.1.1',config.min_version)<0;
+  const blocked=config.status==='paused'||config.status==='killed'||tooOld;
+  $('appGate').classList.toggle('hidden',!blocked);
+  $('appGateMessage').textContent=tooOld?'Clock 版本過舊，請更新 App。':config.status==='paused'?'目前正在維護，請稍後再試。':'Clock 已停用，請聯絡客服。';
+  const notices=Array.isArray(config.notices)?config.notices.filter(n=>n&&n.starts_at<=t&&n.ends_at>=t&&typeof n.message==='string').map(n=>n.message):[];
+  $('centralNotice').textContent=notices.join('　');
+  $('centralNotice').classList.toggle('hidden',!notices.length||blocked);
+ }catch{} // No polling flood; paid API remains fail-closed independently.
+}
+$('appGateRetry').addEventListener('click',()=>{void checkAppGate()});
 const CLOCK_BACKEND='/api/clock';
 let webAccess=null,webMember=null,webRefreshPromise=null;
 const refreshingKey='clock:starry:refresh:v1',pendingKey='clock:starry:pending:v1';
@@ -391,7 +414,7 @@ webAction('contactSupport',()=>{
 });
 void completeWebRelay().then(()=>loadMemberWebUI()).catch(()=>{});
 
-read();reset();renderPresets();summary();void showPublicPricing();setInterval(tick,100);drawMode();if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
+read();reset();renderPresets();summary();void showPublicPricing();void checkAppGate();setInterval(tick,100);drawMode();if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 })();
 </script>
 </body></html>
