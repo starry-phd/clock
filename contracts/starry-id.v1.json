@@ -110,13 +110,146 @@
           "config": {
             "type": "object",
             "additionalProperties": {}
+          },
+          "notices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string"
+                },
+                "starts_at": {
+                  "type": "integer"
+                },
+                "ends_at": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "message",
+                "starts_at",
+                "ends_at"
+              ]
+            },
+            "description": "Announcements running now for this App or for every App; show them in the App (epoch ms)."
           }
         },
         "required": [
           "app_id",
           "status",
           "min_version",
-          "config"
+          "config",
+          "notices"
+        ]
+      },
+      "DirectoryMembers": {
+        "type": "object",
+        "properties": {
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DirectoryMember"
+            }
+          }
+        },
+        "required": [
+          "members"
+        ]
+      },
+      "DirectoryMember": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "member_no": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "886-0112342"
+          },
+          "nickname": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "null when the member chose to hide their name"
+          },
+          "avatar_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "user_id",
+          "member_no",
+          "nickname",
+          "display_name",
+          "avatar_url"
+        ]
+      },
+      "PasskeyRequestOptions": {
+        "type": "object",
+        "properties": {
+          "publicKey": {
+            "type": "object",
+            "properties": {
+              "challenge": {
+                "type": "string"
+              },
+              "rpId": {
+                "type": "string"
+              },
+              "userVerification": {
+                "type": "string"
+              },
+              "timeout": {
+                "type": "integer"
+              },
+              "allowCredentials": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "id"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "challenge",
+              "rpId",
+              "userVerification",
+              "timeout",
+              "allowCredentials"
+            ]
+          },
+          "expires_in": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "publicKey",
+          "expires_in"
         ]
       },
       "SignInResponse": {
@@ -201,6 +334,9 @@
           "balance": {
             "$ref": "#/components/schemas/BatteryBalance"
           },
+          "quantum": {
+            "$ref": "#/components/schemas/QuantumBattery"
+          },
           "activity": {
             "type": "array",
             "items": {
@@ -255,6 +391,7 @@
         },
         "required": [
           "balance",
+          "quantum",
           "activity",
           "next_cursor"
         ]
@@ -293,11 +430,65 @@
           "resets_at"
         ]
       },
+      "QuantumBattery": {
+        "type": "object",
+        "properties": {
+          "app_id": {
+            "type": "string"
+          },
+          "balance": {
+            "type": "integer",
+            "description": "Quantum Battery bought in this App (usable only in this App)"
+          },
+          "reserved": {
+            "type": "integer"
+          },
+          "available": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "app_id",
+          "balance",
+          "reserved",
+          "available"
+        ],
+        "description": "Quantum Battery in the App of the access token. Free monthly Battery is spent first, then this."
+      },
+      "PasskeyCreationOptions": {
+        "type": "object",
+        "properties": {
+          "publicKey": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "expires_in": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "publicKey",
+          "expires_in"
+        ]
+      },
       "Me": {
         "type": "object",
         "properties": {
           "user_id": {
             "type": "string"
+          },
+          "member_no": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "staff_role": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "owner, admin or support when this member is Starry staff, otherwise null. Apps may use it to show settings only to the owner, and must re-check server-side."
           },
           "status": {
             "type": "string"
@@ -370,6 +561,8 @@
         },
         "required": [
           "user_id",
+          "member_no",
+          "staff_role",
           "status",
           "created_at",
           "deletion_requested_at",
@@ -455,6 +648,80 @@
               "null"
             ]
           },
+          "nickname": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Nickname (暱稱), at most 30 characters. Always public."
+          },
+          "occupation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "organization": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "website": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "https:// URL"
+          },
+          "bio": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "languages": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "interests": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "skills": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "university": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "university_dept": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "grad_school": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "grad_dept": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "derived": {
             "$ref": "#/components/schemas/ProfileDerived"
           },
@@ -504,6 +771,18 @@
           "region",
           "city",
           "motto",
+          "nickname",
+          "occupation",
+          "organization",
+          "website",
+          "bio",
+          "languages",
+          "interests",
+          "skills",
+          "university",
+          "university_dept",
+          "grad_school",
+          "grad_dept",
           "derived",
           "visibility",
           "field_updated_at",
@@ -594,7 +873,8 @@
             "enum": [
               "public",
               "private"
-            ]
+            ],
+            "description": "Always public; a request to hide it is refused"
           },
           "birthday": {
             "type": "string",
@@ -641,6 +921,57 @@
               "private"
             ],
             "description": "Shown only once verified"
+          },
+          "occupation": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ],
+            "description": "Occupation and organization"
+          },
+          "website": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ]
+          },
+          "bio": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ]
+          },
+          "languages": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ]
+          },
+          "interests": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ]
+          },
+          "skills": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ]
+          },
+          "education": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ],
+            "description": "University and graduate school with their departments"
           }
         },
         "required": [
@@ -651,7 +982,14 @@
           "location",
           "phone",
           "motto",
-          "contact_email"
+          "contact_email",
+          "occupation",
+          "website",
+          "bio",
+          "languages",
+          "interests",
+          "skills",
+          "education"
         ]
       },
       "PublicProfile": {
@@ -663,11 +1001,19 @@
               "null"
             ]
           },
+          "nickname": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Always public"
+          },
           "avatar_url": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Always public"
           },
           "birthday_month_day": {
             "type": [
@@ -736,10 +1082,91 @@
               "string",
               "null"
             ]
+          },
+          "occupation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "organization": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "website": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bio": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "languages": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "interests": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "skills": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "education": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "university": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "university_dept": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "grad_school": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "grad_dept": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "university",
+              "university_dept",
+              "grad_school",
+              "grad_dept"
+            ]
           }
         },
         "required": [
           "display_name",
+          "nickname",
           "avatar_url",
           "birthday_month_day",
           "zodiac_name",
@@ -747,7 +1174,15 @@
           "location",
           "phone",
           "motto",
-          "contact_email"
+          "contact_email",
+          "occupation",
+          "organization",
+          "website",
+          "bio",
+          "languages",
+          "interests",
+          "skills",
+          "education"
         ],
         "description": "What other members may see under the current visibility settings"
       },
@@ -911,6 +1346,17 @@
               "null"
             ]
           },
+          "quantum_amount": {
+            "type": "integer",
+            "description": "Part of amount held in Quantum Battery (the rest is free monthly Battery)"
+          },
+          "quantum_charged": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Part of charged taken from Quantum Battery"
+          },
           "created_at": {
             "type": "integer"
           },
@@ -929,6 +1375,8 @@
           "amount",
           "status",
           "charged",
+          "quantum_amount",
+          "quantum_charged",
           "created_at",
           "expires_at",
           "replayed"
@@ -1135,6 +1583,115 @@
         }
       }
     },
+    "/v1/directory/members": {
+      "post": {
+        "tags": [
+          "Apps"
+        ],
+        "summary": "App backend: public nickname, name and avatar of its own members (leaderboards)",
+        "description": "Needs the App backend service key (x-starry-app-key). 1 to 50 member IDs per call. Only members who have signed in to the calling App are returned; Email and all other fields are never included.",
+        "security": [
+          {
+            "appKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "x-starry-app-key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "maxItems": 50
+                  }
+                },
+                "required": [
+                  "user_ids"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Members of the calling App",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectoryMembers"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/billing/revenuecat/{appId}": {
       "post": {
         "tags": [
@@ -1228,6 +1785,208 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/passkey/options": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Passkey sign-in step 1: challenge (single use, 10 minutes, bound to the App)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "app_id": {
+                    "type": "string",
+                    "example": "recordnote"
+                  }
+                },
+                "required": [
+                  "app_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Options for the platform Passkey API (iOS, Android Credential Manager, web navigator.credentials.get)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyRequestOptions"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/passkey": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Passkey sign-in step 2: send the signed assertion, receive tokens",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "app_id": {
+                    "type": "string",
+                    "example": "recordnote"
+                  },
+                  "id": {
+                    "type": "string",
+                    "description": "Credential ID, base64url"
+                  },
+                  "clientDataJSON": {
+                    "type": "string",
+                    "description": "base64url"
+                  },
+                  "authenticatorData": {
+                    "type": "string",
+                    "description": "base64url"
+                  },
+                  "signature": {
+                    "type": "string",
+                    "description": "base64url"
+                  },
+                  "device_label": {
+                    "type": "string",
+                    "maxLength": 80
+                  }
+                },
+                "required": [
+                  "app_id",
+                  "id",
+                  "clientDataJSON",
+                  "authenticatorData",
+                  "signature"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
             "content": {
               "application/json": {
                 "schema": {
@@ -1830,7 +2589,7 @@
           "Battery"
         ],
         "summary": "The member's Starry Battery: this month's balance and the last 30 days",
-        "description": "Free monthly AI allowance shared by every Starry App (S-BAT-04). Read-only; Battery cannot be bought.",
+        "description": "Free monthly AI allowance shared by every Starry App (S-BAT-04), plus the Quantum Battery the member bought in the App of the token. Free Battery itself cannot be bought.",
         "security": [
           {
             "bearerAuth": []
@@ -1911,13 +2670,385 @@
         }
       }
     },
+    "/v1/me/passkeys/options": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Add a Passkey, step 1: creation options (needs a sign-in from the last 10 minutes)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Options for the platform Passkey API (create)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyCreationOptions"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/passkeys": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Add a Passkey, step 2: send the attestation (at most 10 per member)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "clientDataJSON": {
+                    "type": "string"
+                  },
+                  "attestationObject": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 80
+                  }
+                },
+                "required": [
+                  "clientDataJSON",
+                  "attestationObject"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the current state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "The member's Passkeys",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Passkeys",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "passkeys": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "created_at": {
+                            "type": "integer"
+                          },
+                          "last_used_at": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "created_at",
+                          "last_used_at"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "passkeys"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/passkeys/{id}": {
+      "delete": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Remove one of the member’s Passkeys",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "401": {
+            "description": "Not signed in, or the token or nonce is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspended, deletion pending, App unavailable or not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not configured or temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/me": {
       "get": {
         "tags": [
           "Account"
         ],
-        "summary": "The signed-in member: profile, sign-in methods, consent and deletion state",
-        "description": "Also available while deletion is pending, so the App can offer to cancel it.",
+        "summary": "The signed-in member: profile, sign-in methods and consent state",
         "security": [
           {
             "bearerAuth": []
@@ -2079,6 +3210,90 @@
                     ],
                     "description": "At most 200 characters"
                   },
+                  "nickname": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Nickname (暱稱), at most 30 characters. Always public."
+                  },
+                  "occupation": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "At most 60 characters"
+                  },
+                  "organization": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Employer or organization, at most 80 characters"
+                  },
+                  "website": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "https:// URL, at most 200 characters"
+                  },
+                  "bio": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "At most 500 characters"
+                  },
+                  "languages": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "At most 100 characters"
+                  },
+                  "interests": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "At most 200 characters"
+                  },
+                  "skills": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "At most 200 characters"
+                  },
+                  "university": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "University, at most 80 characters"
+                  },
+                  "university_dept": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Department, at most 60 characters"
+                  },
+                  "grad_school": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Graduate school, at most 80 characters"
+                  },
+                  "grad_dept": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Graduate department, at most 60 characters"
+                  },
                   "visibility": {
                     "type": "object",
                     "properties": {
@@ -2094,7 +3309,8 @@
                         "enum": [
                           "public",
                           "private"
-                        ]
+                        ],
+                        "description": "Always public; a request to hide it is refused"
                       },
                       "birthday": {
                         "type": "string",
@@ -2141,6 +3357,57 @@
                           "private"
                         ],
                         "description": "Shown only once verified"
+                      },
+                      "occupation": {
+                        "type": "string",
+                        "enum": [
+                          "public",
+                          "private"
+                        ],
+                        "description": "Occupation and organization"
+                      },
+                      "website": {
+                        "type": "string",
+                        "enum": [
+                          "public",
+                          "private"
+                        ]
+                      },
+                      "bio": {
+                        "type": "string",
+                        "enum": [
+                          "public",
+                          "private"
+                        ]
+                      },
+                      "languages": {
+                        "type": "string",
+                        "enum": [
+                          "public",
+                          "private"
+                        ]
+                      },
+                      "interests": {
+                        "type": "string",
+                        "enum": [
+                          "public",
+                          "private"
+                        ]
+                      },
+                      "skills": {
+                        "type": "string",
+                        "enum": [
+                          "public",
+                          "private"
+                        ]
+                      },
+                      "education": {
+                        "type": "string",
+                        "enum": [
+                          "public",
+                          "private"
+                        ],
+                        "description": "University and graduate school with their departments"
                       }
                     },
                     "description": "Only the fields to change"
@@ -2565,7 +3832,7 @@
         "tags": [
           "Account"
         ],
-        "summary": "Delete the account (disabled at once, purged after 7 days unless cancelled)",
+        "summary": "Delete the account at once and permanently",
         "security": [
           {
             "bearerAuth": []
@@ -2594,7 +3861,7 @@
         },
         "responses": {
           "202": {
-            "description": "Deletion scheduled; all sessions ended",
+            "description": "Account deleted; all sessions ended",
             "content": {
               "application/json": {
                 "schema": {
@@ -2691,7 +3958,7 @@
         "tags": [
           "Account"
         ],
-        "summary": "Cancel a pending deletion",
+        "summary": "Cancel a pending deletion (kept for old Apps; deletion is immediate, so there is never one to cancel)",
         "security": [
           {
             "bearerAuth": []
@@ -3739,7 +5006,7 @@
           "Battery"
         ],
         "summary": "App backend: reserve Battery before starting an AI task",
-        "description": "Needs the App backend service key (x-starry-app-key) and the member access token of the same App. Retrying with the same idempotency_key returns the same reservation. 409 BATTERY_INSUFFICIENT when the allowance does not cover it.",
+        "description": "Needs the App backend service key (x-starry-app-key) and the member access token of the same App. Retrying with the same idempotency_key returns the same reservation. 409 BATTERY_INSUFFICIENT when the allowance does not cover it; 409 BATTERY_APP_CAP when the monthly ceiling set by Starry for this App is reached.",
         "security": [
           {
             "appKey": [],
@@ -3767,13 +5034,21 @@
                     "type": "string",
                     "minLength": 3,
                     "maxLength": 64,
-                    "example": "echo.transcribe"
+                    "example": "echo.transcribe",
+                    "description": "Starts with \"<app_id>.\"; chosen by the App, no registration needed"
+                  },
+                  "task_label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40,
+                    "example": "語音轉文字",
+                    "description": "Name shown to the member in their Battery history"
                   },
                   "units": {
                     "type": "integer",
                     "minimum": 1,
-                    "maximum": 100000,
-                    "description": "Estimated usage in the task type unit, e.g. minutes of audio"
+                    "maximum": 100,
+                    "description": "Battery units to reserve (what the App decided this task costs), at most 100"
                   },
                   "idempotency_key": {
                     "type": "string",
@@ -3936,7 +5211,7 @@
                   "units": {
                     "type": "integer",
                     "minimum": 0,
-                    "maximum": 100000
+                    "maximum": 100
                   }
                 }
               }
