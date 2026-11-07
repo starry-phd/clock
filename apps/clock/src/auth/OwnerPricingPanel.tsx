@@ -30,7 +30,7 @@ export function OwnerPricingPanel({userId}:{userId:string}){
   finally{setBusy(null);}
  };
  return <View style={s.panel}>
-  <Text style={s.title}>Clock 超級管理員｜電池消耗設定</Text>
+  <Text style={s.title}>🔋 Clock 超級管理員｜電池消耗設定</Text>
   <Text style={s.note}>只有經後端驗證的 Owner 能變更。設定 X 後仍須中央 Battery 任務及 Secret 驗證完成才會開放扣量。</Text>
   {prices.map(p=><View key={p.feature} style={s.item}>
    <Text style={s.label}>{p.label}</Text>
