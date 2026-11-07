@@ -21,7 +21,7 @@ test('native and web use the latest owner-approved Battery name and monthly cons
 });
 test('both platforms show the same authorized member balance fields without client-side deduction',()=>{
  assert.ok(native.includes('readBattery(token)'), 'native missing Starry member Battery GET');
- assert.ok(web.includes("starryReq('/v1/me/battery'"), 'web missing member Battery GET');
+ assert.ok(web.includes("request('GET','/v1/me/battery'"), 'web missing official SDK member Battery GET');
  for(const key of ['allowance','used','reserved','remaining','period']){
   assert.ok(native.includes('bal.'+key),'native missing '+key);
   assert.ok(web.includes('bal.'+key),'web missing '+key);
@@ -54,9 +54,9 @@ test('2026-11-07.9 integration: iOS and Web show quantum, permanent deletion and
   assert.match(source,/device=/,platform+' needs minimal device metadata');
  }
  assert.match(nativeScreen,/checkCentralGate/);
- assert.match(nativeScreen,/starts_at<=time&&n.ends_at>=time/);
+ assert.match(nativeScreen,/result\.notices\.map\(n=>n\.message\)/);
  assert.match(webHtml,/checkAppGate/);
- assert.match(webHtml,/starts_at<=t&&n.ends_at>=t/);
+ assert.match(webHtml,/gate\.notices\.map\(n=>n\.message\)/);
  assert.match(webHtml,/centralNotice'\)\.textContent=notices/,'announcements must remain plain text');
  const paths=JSON.parse(contract).paths;
  assert.ok(paths['/v1/auth/passkey'],'contract must describe central passkeys');
