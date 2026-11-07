@@ -9,7 +9,7 @@ b64=base64.b64encode(gzip.compress(raw,compresslevel=9,mtime=0)).decode()
 style=assets['/'].split('<style>',1)[1].split('</style>',1)[0]
 script=assets['/'].split('<script>',1)[1].split('</script>',1)[0]
 sha=lambda x:base64.b64encode(hashlib.sha256(x.encode()).digest()).decode()
-csp="default-src 'none'; script-src 'self' 'sha256-"+sha(script)+"'; style-src 'sha256-"+sha(style)+"'; connect-src 'self' https://id.starry.phd; worker-src 'self'; img-src 'self' data:; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+csp="default-src 'none'; script-src 'self' 'sha256-"+sha(script)+"'; style-src 'sha256-"+sha(style)+"'; connect-src 'self' https://id.starry.phd; worker-src 'self'; img-src 'self' data: https://id.starry.phd; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 source='''// CLOCK v1.1, standalone Starry Cloudflare Worker. Does not touch Starry ID code.
 const BUNDLE = __BUNDLE__;
 let assetsPromise;
