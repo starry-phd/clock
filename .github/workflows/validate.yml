@@ -48,16 +48,6 @@ jobs:
           path: web-preview/cloudflare-worker.mjs
           if-no-files-found: error
           retention-days: 3
-      - name: Emit temporary verified Web bundle for Cloudflare API staging rollout
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import gzip,base64,hashlib
-          worker=Path('web-preview/cloudflare-worker.mjs').read_bytes()
-          print('CLOCK_DEPLOY_SHA256='+hashlib.sha256(worker).hexdigest())
-          print('CLOCK_DEPLOY_B64='+base64.b64encode(gzip.compress(worker,mtime=0)).decode())
-          PY
       - run: node --test test/worker-smoke.mjs
       - run: node --test test/starry-relay.test.mjs
       - run: node --test test/clock-api.test.mjs
