@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useState} from 'react';
-import {Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
+import {Alert, Image, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View} from 'react-native';
 import {updateProfile, StarryApiError} from '@clock/auth-contract';
 import appConfig from '../../app.json';
 import type {RelayProvider, StarryMe} from '@clock/auth-contract';
@@ -23,6 +23,7 @@ export function StarryAccountPanel(){
  const [displayName,setDisplayName]=useState('');
  const [deletePhrase,setDeletePhrase]=useState('');
  const [battery,setBattery]=useState('');
+ const [avatarFailed,setAvatarFailed]=useState(false);
  const [passkeys,setPasskeys]=useState<{id:string;name:string;created_at:number;last_used_at:number|null}[]>([]);
  const [error,setError]=useState('');
  const refresh=useCallback(async()=>{
@@ -34,6 +35,7 @@ export function StarryAccountPanel(){
   setStatus(gateMessage);
   if(config.state!=='ok')return;
   const member=await loadMember();
+  setAvatarFailed(false); // Signed avatar URLs expire; load the fresh GET /v1/me URL every time.
   setMe(member);setDisplayName(member?.profile.display_name??'');
   if(member){
    if(!member.consent.required){
@@ -47,8 +49,8 @@ export function StarryAccountPanel(){
     }>('GET','/v1/me/battery');
     const bal=value.balance;
     const quantum=value.quantum;
-    setBattery(`本月 ${bal.period}｜額度 ${bal.allowance} 顆｜已用 ${bal.used} 顆｜預留 ${bal.reserved} 顆｜剩餘 ${bal.remaining} 顆`
-      +(quantum?`\n此 App 量子電池：餘額 ${quantum.balance} 顆｜可用 ${quantum.available} 顆`:''));
+    setBattery(`🔋 ${bal.remaining} 顆普通電池（本月 ${bal.period}，額度 ${bal.allowance} 顆、已用 ${bal.used} 顆、預留 ${bal.reserved} 顆）`
+      +(quantum?`\n⚛️ ${quantum.available} 顆量子電池（此 App 餘額 ${quantum.balance} 顆）`:''));
     // Free allowance is shared; Quantum is restricted to this App. This is read-only.
    }catch{setBattery('額度暫時無法讀取');}
   }else {setBattery('');setPasskeys([]);}
@@ -96,6 +98,17 @@ export function StarryAccountPanel(){
   if(!ok)return;
   await action(async()=>{await officialStarryClient().deleteAccount();await clearSession();setMe(null);setDeletePhrase('');});
  }
+ // Member numbers are public, mutable display handles, NEVER a primary key.
+ // Read the latest /v1/me on each settings screen entry/refresh.
+ const memberNo=typeof me?.member_no==='string'&&/^[A-Z]{2}\d{7,10}$/.test(me.member_no)?me.member_no:null;
+ const publicProfileUrl=memberNo?api+'/'+encodeURIComponent(memberNo):null;
+ const inviteUrl=memberNo?api+'/Invite/'+encodeURIComponent(memberNo):null;
+ const signedAvatar=typeof me?.profile?.avatar_url==='string'&&me.profile.avatar_url.startsWith('https://')
+  ?me.profile.avatar_url:null;
+ function shareInvite(){
+  if(!inviteUrl){setError('會員編號暫時無法取得，請重新整理會員資料');return;}
+  void Share.share({message:inviteUrl}).catch(()=>setError('無法開啟系統分享功能'));
+ }
  function contactSupport(){
   const build=Platform.OS==='ios'?appConfig.expo.ios.buildNumber:Platform.OS==='android'?appConfig.expo.android.versionCode:'Web';
   const model=String((Platform.constants as unknown as Record<string,unknown>).Model||Platform.OS);
@@ -113,8 +126,22 @@ export function StarryAccountPanel(){
     <Btn label="使用 Passkey 通行密鑰登入" onPress={loginPasskey}/>
     <Btn label="重新檢查登入狀態" onPress={()=>{void action(async()=>{});}}/>
    </View>:<View style={s.block}>
-    <Text style={s.name}>{me.profile.display_name||'繁星會員'}</Text>
-    <Text style={s.info}>會員 ID：{me.user_id}</Text>
+    <View style={s.memberHeader}>
+      {signedAvatar&&!avatarFailed
+        ?<Image source={{uri:signedAvatar}} style={s.avatar} onError={()=>setAvatarFailed(true)}
+          accessibilityLabel="Starry ID 會員頭像"/>
+        :<View style={s.avatarFallback} accessibilityLabel="Starry ID 會員頭像文字">
+          <Text style={s.avatarInitials}>{me.profile.initials||'?'}</Text>
+        </View>}
+      <View style={{flex:1}}>
+        <Text style={s.name}>{me.profile.display_name||'繁星會員'}</Text>
+        <Text style={s.info}>會員編號：{memberNo||'尚未取得'}</Text>
+      </View>
+    </View>
+    {memberNo&&<>
+      <Btn label="查看我的公開會員頁" onPress={()=>{if(publicProfileUrl)void Linking.openURL(publicProfileUrl);}}/>
+      <Btn label="分享我的邀請連結" onPress={shareInvite}/>
+    </>}
     <Text style={s.info}>帳號狀態：{me.status}</Text>
     {me.status==='pending_deletion'?<>
       <Text style={s.error}>此帳號仍顯示舊版刪除申請狀態，請聯絡 Starry ID 客服確認。</Text>
@@ -144,10 +171,10 @@ export function StarryAccountPanel(){
             <Btn label="移除" onPress={()=>removePasskey(p.id)} danger/>
            </View>)}
         </View>
-        <Text style={s.info}>繁星電池艙 Starry Battery｜會員共用的消費用量月額度</Text>
+        <Text style={s.info}>🔋 繁星電池艙 Starry Battery｜會員共用的消費用量月額度</Text>
         <Text style={s.info}>{battery||'尚未取得'}</Text>
         <OwnerPricingPanel userId={me.user_id}/>
-        <Text style={s.info}>月額度跨已授權 Starry Apps 共用，適用核准的 AI 與非 AI 服務；每月 1 日（台灣時間）恢復。此頁僅查詢，不會扣額。</Text>
+        <Text style={s.info}>🔋 月額度跨已授權 Starry Apps 共用，適用核准的 AI 與非 AI 服務；每月 1 日（台灣時間）恢復。此頁僅查詢，不會扣額。</Text>
       </View>:null}
       <Btn label={Platform.OS==='ios'?'登出所有繁星 App':'登出 Clock（Android 共用登入待驗證）'} onPress={()=>{void action(async()=>{await signOut();setMe(null);});}}/>
       <Btn label="登出所有裝置" onPress={()=>{void action(async()=>{if(await confirmAction('登出所有裝置','這會使全部 Starry ID 裝置的登入狀態失效。')){await signOutEverywhere();setMe(null);}});}}/>
@@ -171,4 +198,9 @@ const s=StyleSheet.create({
  warning:{padding:10,borderColor:'#997D3A',borderWidth:1,borderRadius:10,gap:7},warnText:{color:'#FFCD75'},
  passkeyPanel:{borderWidth:1,borderColor:C.line,borderRadius:10,padding:12,gap:8},
  passkeyRow:{flexDirection:'row',alignItems:'center',gap:10,justifyContent:'space-between'},
+ memberHeader:{flexDirection:'row',alignItems:'center',gap:12,marginVertical:5},
+ avatar:{width:62,height:62,borderRadius:31,backgroundColor:C.panel},
+ avatarFallback:{width:62,height:62,borderRadius:31,backgroundColor:C.panel,borderWidth:1,borderColor:C.line,
+  alignItems:'center',justifyContent:'center'},
+ avatarInitials:{color:C.mint,fontSize:22,fontWeight:'800'},
 });
