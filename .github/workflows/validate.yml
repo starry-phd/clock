@@ -25,6 +25,8 @@ jobs:
     name: Tests and TS types
     needs: gitleaks
     runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --experimental-transform-types
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,12 +41,23 @@ jobs:
       - run: pnpm codegen:starry
       - run: node --test packages/clock-core/test/clock.test.mjs
       - run: python3 tools/build_worker.py
+      - name: Retain verified Web deployment bundle for staged rollout
+        uses: actions/upload-artifact@v4
+        with:
+          name: clock-web-worker-${{ github.sha }}
+          path: web-preview/cloudflare-worker.mjs
+          if-no-files-found: error
+          retention-days: 3
       - run: node --test test/worker-smoke.mjs
       - run: node --test test/starry-relay.test.mjs
       - run: node --test test/clock-api.test.mjs
       - run: node --test test/platform-parity.test.mjs
+      - run: node --test test/clock-passkey-parity.test.mjs
+      - run: node --test test/clock-web-sso.test.mjs
       - run: node --test test/clock-battery-feature.test.mjs
+      - run: node --test test/clock-free-sync.test.mjs
       - run: node --test test/clock-api-staging.test.mjs
+      - run: python3 -m unittest tools/test_extract_android_sha256.py
       - run: python3 tools/check_platform_parity.py
       - run: python3 tools/preflight.py --checks static
       - run: pnpm --dir apps/clock exec tsc --noEmit

@@ -1,77 +1,80 @@
+/**
+ * End-to-end HTTP checks against actual Cloudflare staged + production Web.
+ * Only public GETs and unauthorized negative checks. Never spends Battery.
+ * The current Web Worker deliberately reports only app_id/version in /api/health;
+ * the previous test relied on obsolete starry_relay/source_sha keys.
+ */
 import assert from 'node:assert/strict';
-const base='https://clock-staging.starry-phd.workers.dev';
-async function get(path){
-  const res=await fetch(base+path,{redirect:'manual',signal:AbortSignal.timeout(18000)});
-  assert.equal(res.status,200,base+path+' HTTP '+res.status);
-  return res;
+import {test} from 'node:test';
+const endpoints={
+ staging:'https://clock-staging.starry-phd.workers.dev',
+ production:'https://clock.starry.phd'
+};
+async function fetchSafe(url){
+ const r=await fetch(url,{redirect:'manual',signal:AbortSignal.timeout(20000)});
+ return r;
 }
-const health=await (await get('/api/health')).json();
-assert.equal(health.status,'ok');
-assert.equal(health.app_id,'clock');
-assert.equal(health.starry_relay,true);
-assert.ok(typeof health.source_sha==='string'&&health.source_sha.length>6);
-const root=await get('/');
-const body=await root.text();
-assert.match(body,/loginGoogle/);
-assert.match(body,/loginApple/);
-assert.match(body,/ownerPricing/);
-assert.match(body,/id="freeReplacePanel"/);
-assert.match(body,/id="freeReplaceSave"/);
-assert.match(body,/async function replaceFree\(\)/);
-assert.match(body,/CLOCK_BACKEND/);
-assert.match(body,/CLOCK_BACKEND='\/api\/clock'/);
-const sameOriginPricing=await get('/api/clock/v1/pricing');
-const pricingData=await sameOriginPricing.json();
-assert.equal(pricingData.free_presets,3);
-assert.equal(pricingData.features.find(f=>f.feature==='clock.preset_create')?.available,false);
-assert.equal(sameOriginPricing.headers.get('cache-control'),'no-store');
-const sameOriginAnon=await fetch(base+'/api/clock/v1/presets',{signal:AbortSignal.timeout(18000)});
-assert.equal(sameOriginAnon.status,401);
-const csp=root.headers.get('content-security-policy')||'';
-assert.match(csp,/script-src 'sha256-/);
-assert.match(csp,/connect-src 'self' https:\/\/id\.starry\.phd/);
-assert.doesNotMatch(csp,/clock-api\.starry-phd\.workers\.dev/);
-assert.match(csp,/frame-ancestors 'none'/);
-const done=await get('/auth/done');
-assert.match((await done.text()),/loginGoogle/);
-assert.equal(done.headers.get('cache-control'),'no-store');
-assert.equal(done.headers.get('referrer-policy'),'no-referrer');
-assert.match(await (await get('/sw.js')).text(),/clock-web-v1-6-safe-replace/);
-const registry=await (await get('/api/starry/status')).json();
-assert.equal(registry.app,'active');
-console.log('CLOCK_STAGING_SMOKE_PASS',JSON.stringify({sha:health.source_sha,relay:true,registry:registry.app,callback:'no-store',csp:true}));
-
-
-const liveBase='https://clock.starry.phd';
-const liveHealth=await fetch(liveBase+'/api/health',{signal:AbortSignal.timeout(18000)});
-assert.equal(liveHealth.status,200,'production health failed');
-const liveInfo=await liveHealth.json();
-assert.equal(liveInfo.starry_relay,true);
-assert.match(liveInfo.source_sha,/^[a-f0-9]{40}$/);
-const liveRoot=await fetch(liveBase+'/',{signal:AbortSignal.timeout(18000)});
-assert.equal(liveRoot.status,200,'production app unavailable');
-const liveBody=await liveRoot.text();
-if(process.env.GITHUB_REF==='refs/heads/main'){
- assert.equal(liveBody,body,'production HTML must match tested staging HTML');
+async function verify(name,base){
+ const health=await fetchSafe(base+'/api/health');
+ assert.equal(health.status,200,name+' health HTTP '+health.status);
+ const details=await health.json();
+ assert.equal(details.app_id,'clock',name+' app registration');
+ assert.equal(details.brand_id,'starry');
+ assert.equal(details.version,'1.1.1');
+ const root=await fetchSafe(base+'/');
+ assert.equal(root.status,200,name+' index HTTP '+root.status);
+ const body=await root.text();
+ for(const required of ['loginGoogle','loginApple','loginPasskey','ownerPricing',
+   'id="freeReplacePanel"','id="freeReplaceSave"','shareWebSignIn',
+   'syncWebSignIn','completeWebSsoCheck','signOutWebEverywhere',
+   'src="/starry-client.js"']){
+   assert.ok(body.includes(required),name+' missing '+required);
+ }
+ const csp=root.headers.get('content-security-policy')||'';
+ assert.match(csp,/script-src 'self' 'sha256-/);
+ assert.match(csp,/connect-src 'self' https:\/\/id\.starry\.phd/);
+ assert.match(csp,/frame-ancestors 'none'/);
+ assert.doesNotMatch(csp,/clock-api\.starry-phd\.workers\.dev/);
+ const script=await fetchSafe(base+'/starry-client.js');
+ assert.equal(script.status,200,name+' official SDK');
+ const sdk=await script.text();
+ for(const method of ['shareWebSignIn','syncWebSignIn','completeWebSsoCheck','signOutWebEverywhere']){
+   assert.ok(sdk.includes(method),name+' missing SDK '+method);
+ }
+ const sw=await fetchSafe(base+'/sw.js');
+ assert.equal(sw.status,200);
+ const swText=await sw.text();
+ assert.match(swText,/clock-web-v1-14-web-sso/);
+ const done=await fetchSafe(base+'/auth/done');
+ assert.equal(done.status,200);
+ assert.equal(done.headers.get('cache-control'),'no-store');
+ assert.equal(done.headers.get('referrer-policy'),'no-referrer');
+ assert.match(await done.text(),/loginGoogle/);
+ const pricingResp=await fetchSafe(base+'/api/clock/v1/pricing');
+ assert.equal(pricingResp.status,200,name+' Clock API binding');
+ const pricing=await pricingResp.json();
+ assert.equal(pricing.free_presets,3);
+ assert.equal(pricing.features.find(f=>f.feature==='clock.preset_create')?.available,false,
+   'Battery must remain disabled during Web-only rollout');
+ assert.equal(pricingResp.headers.get('cache-control'),'no-store');
+ const anon=await fetchSafe(base+'/api/clock/v1/presets');
+ assert.equal(anon.status,401,name+' must reject anonymous member data');
+ const registration=await fetchSafe(base+'/api/starry/status');
+ assert.equal(registration.status,200);
+ assert.equal((await registration.json()).app,'active');
+ return {body,csp,swText,sdk,freePresets:pricing.free_presets};
 }
-if(process.env.GITHUB_REF==='refs/heads/main')assert.equal(liveRoot.headers.get('content-security-policy'),csp,'CSP parity');
-const livePriceResponse=await fetch(liveBase+'/api/clock/v1/pricing',{signal:AbortSignal.timeout(18000)});
-assert.equal(livePriceResponse.status,200,'production same-origin Battery API unavailable');
-const livePricing=await livePriceResponse.json();
-assert.equal(livePricing.free_presets,3);
-assert.equal(livePricing.features.find(x=>x.feature==='clock.preset_create')?.available,false,'unexpected production Battery charges');
-const liveAnonymousMember=await fetch(liveBase+'/api/clock/v1/presets',{signal:AbortSignal.timeout(18000)});
-assert.equal(liveAnonymousMember.status,401,'member data must require a Starry token');
-console.log('CLOCK_PRODUCTION_BATTERY_GATEWAY_PASS',JSON.stringify({sameOrigin:true,pricing:true,authRequired:true,charges:false}));
-const liveCallback=await fetch(liveBase+'/auth/done',{signal:AbortSignal.timeout(18000)});
-assert.equal(liveCallback.status,200);
-assert.equal(liveCallback.headers.get('cache-control'),'no-store');
-assert.equal(liveCallback.headers.get('referrer-policy'),'no-referrer');
-const liveSW=await fetch(liveBase+'/sw.js',{signal:AbortSignal.timeout(18000)});
-assert.equal(liveSW.status,200);
-const liveSWText=await liveSW.text();
-const stageSWText=await (await get('/sw.js')).text();
-if(process.env.GITHUB_REF==='refs/heads/main')assert.equal(liveSWText,stageSWText,'production SW must match staging');
-const liveRegistration=await (await fetch(liveBase+'/api/starry/status',{signal:AbortSignal.timeout(18000)})).json();
-assert.equal(liveRegistration.app,'active');
-console.log('CLOCK_PRODUCTION_SMOKE_PASS',JSON.stringify({sha:liveInfo.source_sha,callback:'no-store',registry:'active',assetsMatchStaging:true}));
+let stage;
+test('actual Cloudflare staging Web v14: SSO assets, health, safe Battery, member isolation',async()=>{
+ stage=await verify('staging',endpoints.staging);
+ console.log('CLOCK_STAGING_V14_HTTP_PASS',JSON.stringify({sdk:true,charges:false,memberAuth:true}));
+});
+test('actual Cloudflare production Web v14 matches staging (read-only)',async()=>{
+ const live=await verify('production',endpoints.production);
+ const checked=stage??await verify('staging',endpoints.staging);
+ assert.equal(live.body,checked.body,'production HTML differs from staging release');
+ assert.equal(live.csp,checked.csp,'production CSP differs from staging');
+ assert.equal(live.swText,checked.swText,'production service worker differs from staging');
+ assert.equal(live.sdk,checked.sdk,'production SDK differs from staging');
+ console.log('CLOCK_PRODUCTION_V14_HTTP_PASS',JSON.stringify({sdk:true,charges:false,sameBundle:true}));
+});

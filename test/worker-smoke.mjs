@@ -21,9 +21,14 @@ test('worker serves PWA and offline assets with strict CSP',async()=>{
   assert.ok(callback.headers.get('Content-Security-Policy')?.includes('https://id.starry.phd'),'CSP must allow Starry identity API');
   assert.match(await callback.text(),/loginGoogle/,'callback serves app auth handler');
   const sw=await (await get('/sw.js')).text();
-  assert.match(sw, /clock-web-v1-6-safe-replace/);
+  assert.match(sw, /clock-web-v1-14-web-sso/);
   assert.match(sw, /url\.pathname==='\/auth\/done'/);
   assert.match(sw, /fetch\(request\)/);
+  const sdk=await get('/starry-client.js');
+  assert.equal(sdk.status,200);
+  assert.match(sdk.headers.get('Content-Type')||'',/javascript/);
+  assert.match(await sdk.text(),/StarryClient/);
+  assert.ok(csp.includes("script-src 'self'"),'SDK script must be self-hosted with restrictive CSP');
   for (const path of ['/manifest.webmanifest','/sw.js','/icon.svg']){
     const x=await get(path);assert.equal(x.status,200);assert.ok((await x.text()).length>100);
   }

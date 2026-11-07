@@ -45,3 +45,25 @@ export async function saveOwnerPrice(price:ClockPrice,units:number,enabled:boole
   feature:price.feature,units,enabled,version:price.version
  },token));
 }
+
+/** The member's three free slots. No Starry Battery usage is involved. */
+export type FreePreset=CloudPreset&{slot:number;version:number};
+export async function readFreePresets(){
+ return withAccess(token=>call<{presets:FreePreset[]}>('/v1/presets/free','GET',undefined,token));
+}
+export async function initializeFreePresets(presets:CloudPreset[]){
+ return withAccess(token=>call<{presets:FreePreset[]}>('/v1/presets/free/init','POST',{presets},token));
+}
+export async function addFreePreset(preset:CloudPreset){
+ return withAccess(token=>call<{status:string;presets:FreePreset[]}>('/v1/presets/free','POST',preset,token));
+}
+export async function editFreePreset(preset:FreePreset){
+ return withAccess(token=>call<{status:string;presets:FreePreset[]}>('/v1/presets/free/'+encodeURIComponent(preset.id),'PATCH',{
+  name:preset.name,duration_seconds:preset.durationSeconds,version:preset.version
+ },token));
+}
+export async function removeFreePreset(preset:FreePreset){
+ return withAccess(token=>call<{status:string;presets:FreePreset[]}>('/v1/presets/free/'+encodeURIComponent(preset.id),'DELETE',{
+  version:preset.version
+ },token));
+}

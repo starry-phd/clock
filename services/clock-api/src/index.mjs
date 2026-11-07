@@ -1,4 +1,5 @@
 import {handleClock} from './routes.mjs';
+import {Starry} from './starry-sdk.ts';
 // Clock optional backend: no charge-enabled endpoints, no Starry ID changes.
 // Starry Battery = member-shared monthly consumption quota (AI + approved non-AI).
 const ID = 'https://id.starry.phd';
@@ -24,50 +25,53 @@ export async function verifyStarryJWT(token,jwks,now=Math.floor(Date.now()/1000)
   if(!ok)throw Error('invalid_signature');
   return claims;
 }
-export async function verifyAccessViaJWKS(accessToken,fetchFn=fetch){
+// Cache public keys briefly; unknown kid forces a fresh pull for key rotation.
+// Never cache or log tokens. A JWKS outage on cache miss fails closed.
+const JWKS_TTL_MS=5*60*1000;
+let jwksCache=null;
+let jwksUntil=0;
+async function readJWKS(fetchFn,force=false){
+  if(!force&&jwksCache&&Date.now()<jwksUntil)return jwksCache;
   const r=await fetchFn(ID+'/.well-known/jwks.json',{headers:{Accept:'application/json'},signal:AbortSignal.timeout(8000)});
   if(!r.ok)throw Error('starry_jwks_unavailable');
-  return verifyStarryJWT(accessToken,await r.json());
+  const keys=await r.json();
+  if(!Array.isArray(keys?.keys))throw Error('starry_jwks_invalid');
+  jwksCache=keys;
+  jwksUntil=Date.now()+JWKS_TTL_MS;
+  return keys;
 }
-async function batteryFetch(path,body,token,key,fetchFn){
-  const headers={Accept:'application/json','x-starry-app-key':key};
-  if(token)headers.Authorization='Bearer '+token;
-  if(body!==undefined)headers['Content-Type']='application/json';
-  const r=await fetchFn(ID+path,{method:'POST',headers,body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(8000)});
-  if(!r.ok)throw Error('starry_battery_http_'+r.status);
-  return r.json();
+export async function verifyAccessViaJWKS(accessToken,fetchFn=fetch){
+  const keys=await readJWKS(fetchFn);
+  try{return await verifyStarryJWT(accessToken,keys);}
+  catch(error){
+    if(error?.message!=='unknown_key')throw error;
+    // A rotated central signing key may arrive before the cache expires.
+    return verifyStarryJWT(accessToken,await readJWKS(fetchFn,true));
+  }
 }
-// This helper is not connected to any route until owner approves an AI product and service costs.
+// AI task helper is staged only; owner has not registered AI products for Clock.
+// Use official Starry SDK, preserving idempotency and never releasing an ambiguous commit.
 export async function runBatteryBackedTask({memberToken,taskType='clock.ai',units,idempotencyKey,execute,env,fetchFn=fetch}){
-  if(!env?.STARRY_BATTERY_KEY)throw Error('battery_key_missing');
-  if(!/^clock\.[a-z][a-z0-9_-]{1,31}$/.test(taskType))throw Error('invalid_task_type');
-  if(!Number.isInteger(units)||units<1||units>30)throw Error('invalid_units');
-  if(typeof idempotencyKey!=='string'||idempotencyKey.length<8||idempotencyKey.length>128)throw Error('invalid_idempotency');
-  if(typeof execute!=='function')throw Error('ai_executor_missing');
-  // If Starry ID cannot be contacted, fail closed BEFORE any AI work.
-  await verifyAccessViaJWKS(memberToken,fetchFn);
-  const key=env.STARRY_BATTERY_KEY;
-  const reservation=await batteryFetch('/v1/battery/reservations',{task_type:taskType,units,idempotency_key:idempotencyKey},memberToken,key,fetchFn);
-  // Retry must not execute a side effect twice; central will resolve/expire the original.
-  if(reservation.replayed)throw Error('battery_request_in_progress_or_replayed');
-  if(!reservation.reservation_id||reservation.status!=='reserved'||reservation.task_type!==taskType)throw Error('reservation_failed');
-  // Clock X means actual batteries charged. Central task rate must remain one per unit.
-  if(taskType==='clock.preset_create' && (reservation.units!==units||reservation.amount!==units)){
-    try{await batteryFetch('/v1/battery/reservations/'+encodeURIComponent(reservation.reservation_id)+'/release',undefined,null,key,fetchFn);}catch{}
-    throw Error('battery_price_mismatch');
-  }
-  let committed=false;
-  try{
-    const output=await execute();
-    await batteryFetch('/v1/battery/reservations/'+encodeURIComponent(reservation.reservation_id)+'/commit',{units},null,key,fetchFn);
-    committed=true;
-    return output;
-  }catch(error){
-    if(!committed){
-      try{await batteryFetch('/v1/battery/reservations/'+encodeURIComponent(reservation.reservation_id)+'/release',undefined,null,key,fetchFn);}catch{}
-    }
-    throw error;
-  }
+ if(!env?.STARRY_BATTERY_KEY)throw Error('battery_key_missing');
+ if(!/^clock\.[a-z][a-z0-9_-]{1,31}$/.test(taskType))throw Error('invalid_task_type');
+ if(!Number.isInteger(units)||units<1||units>30)throw Error('invalid_units');
+ if(typeof idempotencyKey!=='string'||idempotencyKey.length<8||idempotencyKey.length>128)throw Error('invalid_idempotency');
+ if(typeof execute!=='function')throw Error('ai_executor_missing');
+ await verifyAccessViaJWKS(memberToken,fetchFn);
+ const client=new Starry({baseUrl:ID,serviceKey:env.STARRY_BATTERY_KEY,fetch:fetchFn});
+ const reservation=await client.reserve(memberToken,{taskType,taskLabel:taskType,units,idempotencyKey});
+ if(reservation.replayed)throw Error('battery_request_in_progress_or_replayed');
+ if(!reservation.reservation_id||reservation.status!=='reserved'||reservation.task_type!==taskType)throw Error('reservation_failed');
+ if(taskType==='clock.preset_create'&&(reservation.units!==units||reservation.amount!==units)){
+  try{await client.release(reservation.reservation_id)}catch{}
+  throw Error('battery_price_mismatch');
+ }
+ let output;
+ try{output=await execute();}
+ catch(error){try{await client.release(reservation.reservation_id)}catch{};throw error}
+ // If commit times out, DO NOT release: it may already have succeeded.
+ await client.commit(reservation.reservation_id,units);
+ return output;
 }
 export default {
  async fetch(request,env){

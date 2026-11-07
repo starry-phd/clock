@@ -1,6 +1,6 @@
 # Clock 繁星計時器｜AI 開發交接（最新狀態）
 
-> 盤點時間：2026-11-07（台灣時間）。**本文件為目前的交接入口**；開發前須重新驗證雲端即時狀態，不能把測試通過等同所有功能已上線。
+> 盤點時間：2026-11-07（台灣時間）。串接指令最新版：**2026-11-07.9**。本文件仍記錄部署時點的狀態；以後續 PR／CI／staging 與實際中央 API 核驗結果為準，不能把模擬測試等同真實扣量成功。
 >
 > 專案 GitHub：[starry-phd/clock](https://github.com/starry-phd/clock)（公開）；正式 Web：[clock.starry.phd](https://clock.starry.phd)。
 
@@ -16,7 +16,7 @@
 | Owner 定價 | Clock D1 的 `clock.preset_create` 為 **2 顆／次、enabled=1、version=9**；`CLOCK_OWNER_USER_IDS` Secret 已在正式及 staging API 設定 |
 | Battery 計費 | 正式與 staging API 的 `BATTERY_CHARGES_ENABLED=false`。**使用者目前不會被扣點，不能聲稱第 4 組已可付費新增。** |
 | 金鑰（僅列有無，不含值） | 正式 `clock-api` **有** `STARRY_BATTERY_KEY`；staging `clock-api-staging` **沒有**。`clock` Web Worker 有此 Secret，**但前端不可使用金鑰** |
-| 中央 Battery 現況 | 對 `starry-battery` D1 唯讀檢查：**無 `battery_task_types` 資料表**，現存 `battery_accounts`、`battery_app_keys`、`battery_app_limits`、`battery_ledger`、`battery_policy`、`battery_reservations`。須確認最新中央 API／migrations／任務管理設計，**不可直接補表或改 Starry ID** |
+| 中央 Battery 契約 | 已核對 `starry-phd/id` `docs/integration-guide.md` 第 9、12 節與 `src/battery/battery.ts`：2026-11-07 版本**不再使用 `battery_task_types` 表**；由 Clock 後端自行決定 `clock.preset_create` 和 `units=X`（1 顆／單位），中央按 X 預留。不可修改 Starry ID。 |
 | 已產生收費資料 | 正式 Clock D1 查詢 `clock_presets=0`、`clock_requests=0`（截至本次盤點） |
 
 本次關鍵 PR：[ #8 Battery 定義與雙平台規範](https://github.com/starry-phd/clock/pull/8)、[#9 Clock API／Owner 定價／Expo+Web](https://github.com/starry-phd/clock/pull/9)、[#11 同網域 API](https://github.com/starry-phd/clock/pull/11)、[#12 合法任務碼](https://github.com/starry-phd/clock/pull/12)、[#13 免費取代儲存](https://github.com/starry-phd/clock/pull/13)。目前無開啟中的 PR（盤點時）。
@@ -32,8 +32,8 @@
 
 ## 3. 目前阻礙與接手優先順序
 
-1. **中央契約先行**：閱讀 `starry-phd/id` 最新 `docs/integration-guide.md`、`openapi/starry-id.v1.json`、Battery migrations／程式；核對 `starry-battery` 缺少 `battery_task_types` 是否是版本架構變動，確認 `clock.preset_create` 能在 Admin Lite 正式登記。**只查詢，不能自行修改 Starry ID**；若需要中央修補，回報 Owner／中央模組處理。
-2. **修復 staging 扣點條件**：由 Owner 在授權後台確認非 AI 任務 `clock.preset_create`、每單位消耗 1、單次上限至少 X；將可用的 `STARRY_BATTERY_KEY` 經 Cloudflare UI/Secret 方式設定至 `clock-api-staging`（**不索取或顯示值**），再確認正式 `clock-api` 現有金鑰是否有效。
+1. **中央契約已核對**：2026-11-07.9 中央自行接收合法 `clock.` 任務代碼、`task_label`、`units=X`；**不用在 Starry ID Admin Lite 建立任務類型**。仍須 staging 真實預留／扣量的實證；不得自行更改中央程式／D1。
+2. **修復 staging 扣點條件**：Clock Owner 定價 X（目前 2）與中央可用單次上限（1–100）相容；由業主本人將 Clock 專屬有效 `STARRY_BATTERY_KEY` 安全設定至 `clock-api-staging` Workers Secret（**不索取或顯示金鑰**），再確認正式 `clock-api` 金鑰有效。中央已不再維護任務費率或任務登記表。
 3. **安全交易驗收**：僅 staging 開啟 `BATTERY_CHARGES_ENABLED=true`，使用明確同意的測試會員驗證：第 4 組真正扣 X、中央帳本一致、餘額不足拒絕、取消／失敗 release、重送同一 request_id 不重扣、價格異動拒絕、非 Owner 403、跨會員資料隔離；未通過不得開 production 扣量。
 4. **一致性與資料遷移**：目前前 3 組預設以各裝置本機儲存，付費雲端預設才同步；尚未建立「每位會員跨所有裝置統一免費 3 組」的完整機制。上線收費前須避免用不同裝置繞過免費數量，同時保留既有本機資料；不可默默清空。
 5. **Expo 發布**：原生程式已同步但安裝版未更新；過去 GitHub EAS Job 因缺 `EXPO_TOKEN` 而在建置前停止，**先查最新設定再採取行動**。按 Owner 授權、安全簽章、iOS/Android 實機及審核流程處理，不要把 Web 已上線視為 App 已上架。
@@ -50,4 +50,70 @@
 
 ## 5. 可直接交給下一位 AI 的簡易指令
 
-> 請接手 GitHub `starry-phd/clock`，先閱讀 `AGENTS.md` 與 `docs/CLOCK-AI-HANDOFF.md`，核對 main／CI／Cloudflare 正式與 staging 狀態。保持 Expo iOS/Android 與 Web 全功能同步。優先查明 Starry ID Battery 中央任務 `clock.preset_create` 的真實契約及缺表問題；不得改 Starry ID，不得洩露金鑰。先在 staging 完成安全扣點驗收，CI 全綠透過 PR 合併，才依已授權流程啟用正式版。現有免費 3 組／免費取代功能必須保留；每次回報已完成、未完成、阻礙與下一步。
+> 請接手 GitHub `starry-phd/clock`，先閱讀 `AGENTS.md`、本文件與 2026-11-07.9 串接更新清單，核對 main／CI／Cloudflare 正式與 staging 狀態。保持 Expo iOS/Android 與 Web 同 PR 功能同步。Battery 中央新版不須任務表；用 `clock.preset_create`、`task_label`、`units=X` 經 Clock 後端預留並確認。不得改 Starry ID，不得洩露金鑰。先在 staging 完成真實扣量驗收，CI 全綠且業主准許後才依流程啟用正式版。現有免費 3 組／免費取代功能必須保留；每次回報已完成、未完成、阻礙與下一步。
+
+
+## 6. 2026-11-07.9 串接更新審查
+
+本次修復分支對照新 Starry ID 串接指令。中央 Battery 無任務類型表是新契約設計，不再要求新增資料表或後台任務登記。已修正 Clock API 的任務標籤、額度錯誤碼、重試恢復、中央 Owner 驗權、JWT 公鑰快取，以及兩端帳號刪除提示／Quantum 顯示／客服入口。**模擬測試不等同已啟用真實扣量。**
+
+尚未完成的跨平台工作：全量換用官方 `starry-client.ts`／`starry-sdk.ts`、Passkey 登入與管理、回前景 App Gate／公告完整驗收、前三組跨裝置一致性、Expo 原生 EAS 實機驗收。Android Passkey 須由業主按實際 APK／Play 簽章登記 SHA-256；測試用 staging Secret 仍缺。這些工作不得以已符合宣稱。
+
+## 7. 本輪續作實測與安全邊界（2026-11-07）
+
+- GitHub PR #15：<https://github.com/starry-phd/clock/pull/15>，草稿；首次 CI 全綠，續作修正仍須確認其最新 HEAD 的 CI。
+- Expo iOS/Android 已引入與 Starry ID GitHub 完全相同的 `sdk/starry-client.ts`，登入中繼、Token refresh/rotation 改由 SDK 處理，沿用原 Refresh Token 儲存鍵，清除舊版磁碟 Access Token。**Web/PWA 尚沿用既有安全中繼程式碼，未完成官方 SDK 轉換**；不要宣稱三端 SDK 遷移完畢。原生也仍需要真正的 Passkey native adapter 與開發建置。
+- Cloudflare Workers 唯讀設定：`clock-api` 的 `BATTERY_CHARGES_ENABLED=false`、`STARRY_BATTERY_KEY` 已配置名稱；`clock-api-staging` 的 `BATTERY_CHARGES_ENABLED=false`、`STARRY_BATTERY_KEY` **缺少**。
+- **Clock 專用 D1 唯讀核對**（非中央資料庫）：`clock-app-db-staging` 的 `clock.preset_create`：**2 顆／次、enabled=0、version=2**；`clock-app-db`：**2 顆／次、enabled=1、version=9**。兩者 `clock_presets` 與 `clock_requests` 均為 0。故 staging 補金鑰後還須經過真正 Owner 身分驗權，從 Clock 自己的管理 API 開啟該功能，**不可直接繞過 Owner 修改 D1**。
+- 待業主安全配置 staging Secret、提供授權測試會員後，僅在 staging 由 Owner 啟用費率與 `BATTERY_CHARGES_ENABLED=true`，驗證至少：真實扣 X、中央與 Clock 對帳、餘額不足、上限、異常 release、冪等重播、權限、跨會員隔離。未過關則 staging 保持關閉、正式不部署。
+- Expo／Web 免費前 3 組跨裝置歸戶一致性仍是**正式扣量之前的獨立阻礙**，需先實作及驗收不丟失舊資料的遷移方案。
+
+### 第一輪續作：前三組免費用途會員歸戶（2026-11-07）
+
+- 在 PR #15 新增 Clock 專用 D1 migration `0004_free_preset_slots.sql`，獨立 `clock_free_presets` 表；**不變更中央 Starry ID 任何表格、授權資料或金鑰**。
+- `GET/POST /v1/presets/free`、`POST /v1/presets/free/init`、`PATCH/DELETE /v1/presets/free/:id`：按經驗證的 Starry user_id 隔離，首次同步使用單一 SQL 交易建立 1～3 組，後續版本衝突回 409，單一會員最多 3 組，免費及付費預設 ID 不得衝突；不觸發 Battery。
+- 在 Expo iOS/Android 與 Web/PWA 都加入：會員首次免費用途同步、遠端優先、原裝置不同用途留本機會員專屬備份、備份檢視及手動恢復、免費刪修及新增；登入前／網路中斷仍能免費計時。
+- 付費 POST 新請求必須先由後端確認會員免費雲端已有 3 組；否則回 `FREE_SLOTS_NOT_READY`，確保真正第 4 組才可能扣 X。已提交/保留請求沿用冪等重播，不被新增的檢查打斷。
+- 新增 `test/clock-free-sync.test.mjs`，並納入 CI：模擬會員隔離、首次同步不可覆寫、舊版本衝突、第三組刪除後免費補位、超過 3 組拒絕、未同步不得扣量。這是程式模擬測試，**不是已完成 staging D1 遷移或實機跨裝置驗收**。
+- 部署安全門檻：必須在 staging Clock D1 **先執行 migration 0004** 再部署這個分支的後端；現有正式版與 Starry ID 完全不動。正式仍不合併、不部署。
+
+### Android SHA-256 自動擷取（2026-11-07）
+
+- 已在 PR #15 新增 **只讀** GitHub Actions `.github/workflows/clock-android-sha256.yml`。手動觸發後可從 `EXPO_TOKEN` 讀取最新已完成的 EAS `preview` APK，或提供已簽章 APK 的 HTTPS 直接下載網址，執行 `apksigner verify --print-certs` 擷取**真正憑證** SHA-256；輸出於 GitHub Summary 與 `clock-android-sha256.txt` Artifact。
+- 不產生新的無關簽章、不開啟私鑰、不啟動新的 EAS Build、不上架、不回寫 Starry ID／Play Console。沒有簽章 APK 或 EAS 存取權時**必須明確失敗，不得捏造指紋**。
+- **用途區分**：從 APK 擷取的是 Expo 安裝版的憑證指紋；Google Play 下載版通常由 Google 重新簽章，需要 Google Play Console「App integrity」中 **App signing key certificate SHA-256**，不可以拿 Expo AAB upload key 指紋冒充。
+- 目前此新 Workflow 尚在 Draft PR，未合併主分支；尚未執行，也**未取得任何真實 SHA-256 指紋**。必要前提為可存取已簽署的 EAS APK 或其直接下載網址。
+
+### 2026-11-07｜Android Passkey 指紋由業主確認登記、Clock 兩端接上 Passkey（PR #15）
+
+- 業主已在 Starry ID App Admin 後台完成 Android SHA-256 登記。**不將指紋、Admin 憑證、簽署私鑰或 Starry Battery Secret 複製到 App／Repo**。此確認是業主回報，尚未透過新 Android 安裝包驗證 WebAuthn Origin；Play 安裝版與 EAS Preview 簽章可能不同。
+- Web/PWA `web-preview/index.html`：新增「使用通行密鑰登入」、登入後建立／列出／刪除 Passkey；要求安全網域且瀏覽器支援 WebAuthn，將中央 `rpId=id.starry.phd` 的 challenge/base64url 轉為 WebAuthn ArrayBuffer，回傳憑證到中央 API。未支援時保留 Apple／Google 中繼登入；瀏覽器依賴 Starry ID 的 Related Origin Requests。
+- Expo iOS/Android：加入 `react-native-passkeys@0.4.2`（pnpm lockfile 與 npm SHA-512 integrity 固定）及惰性載入的 `nativePasskeyAdapter.ts`。通過官方 `StarryClient` 的 Passkey 登入／新增／列出／刪除 API；強制驗證 RP id，系統取消與未支援裝置有安全錯誤處理。iOS Associated Domain 維持 `webcredentials:id.starry.phd`。
+- 自動測試 `test/clock-passkey-parity.test.mjs` 已納入 CI，含 Web base64url/RP 轉換、登入備用、Native module/SDK 連接、不得放入中央 Secret，以及原有 Expo 型別檢查。**CI 通過不代表已在 iPhone／Android 安裝版完成 Passkey 實測**。
+- 待辦：取得已簽署 EAS iOS／Android 測試安裝包與真正裝置登入／註冊／移除結果，核對 Play signing 與 Expo preview 指紋是否分別登記，確認 AASA／Asset Links 與 Web ROR 真正生效。最新 SDK 另有可選擇的跨 App shared-storage 功能，尚未啟用，不可稱跨 App SSO 已上線。正式合併、上架與 Battery 扣量依原有門檻辦理。
+
+### Staging Clock D1 資料表已套用（2026-11-07）
+
+- **實際已執行**：Cloudflare 帳號中的 `clock-app-db-staging`（D1 `ae8f940b-c4d0-4df1-af55-bb4b6c8666bb`）成功套用 `0004_free_preset_slots.sql`；唯讀驗證 `clock_free_presets` 表存在，原 `clock_presets`、`clock_requests` 均仍為 0。
+- **沒有執行**：正式 Clock D1 migration、正式或 staging Worker 程式部署、Starry ID 的程式／D1／管理設定修改、Battery Secret 更新、扣電池。既有兩環境 Battery 總開關仍維持已知的 `false`，未重新更動。
+- **下一步**：待 CI 通過，以相同 PR 原始碼部署 `clock-api-staging` 並驗證免費同步 API；啟用 staging 中央扣量前仍須後端 Secret 與授權測試會員，且需 Owner 透過管理 API 啟用 staging 費率；正式版不部署。
+
+### 2026-11-07.12｜最新中央串接指令與 Clock PR #15
+
+- 本輪依據 **2026-11-07.12**（台灣時間 2026-11-07 22:40）與 GitHub `starry-phd/id` 最新 `docs/integration-guide.md` 第 12、13、13.5 節。正式 11 項差異、平台限制與驗收門檻：**[STARRY-ID-2026-11-07.12-AUDIT.md](STARRY-ID-2026-11-07.12-AUDIT.md)**。
+- 更新了官方 `sdk/starry-client.ts`（Expo 原始 TS）與 `sdk/starry-sdk.ts`（Clock API 原始 TS），Web 由官方 TS 產生自家 `/starry-client.js` 並隨 Cloudflare Worker 綑綁（CSP 僅本網域）；既有 Refresh Token 儲存鍵兼容，重複的 Web Token Refresh 已移除。更新官方 OpenAPI 3.1，gitleaks 與中央版本相同。
+- iOS 新增 Keychain Access Group `$(AppIdentifierPrefix)phd.starry.sso`（不設定 Apple Team ID），用 `sharedStorage` 串官方 `syncDeviceSignIn()`；啟動、回到前景與登入狀態改變會重新同步資料。**目前是已實作／未實機驗收；其餘 App 必須採同一個 group/service**。
+- Android 裝置共用登入尚有明確跨 Repo 障礙：Expo SecureStore 為私有儲存，沒有同簽章的全生態系 Provider／Account 無法安全共享；各 App 的 Play signing 和 EAS signing 不一定相同。**不可把單 App SDK 上線宣稱 Android 已完成全 App SSO。**
+- Passkey（原生與 Web）已沿用原有 PR #15 修正；原生 InvalidStateError 的白話提醒、找不到 Passkey 的登入替代方式已補上。業主回報 Clock Play 簽章指紋已填 Admin Lite；**EAS 測試 APK 的實際簽章仍可能需要另填**。
+- 新增 Clock Battery 的中央維護 503 `SERVICE_UNAVAILABLE` 明確處理，沒有啟動計費；會員帳號永久刪除兩端都必須手動輸入 `DELETE` 再確認。
+- **查證證據**：GitHub Actions `Starry ID clock registration` 工作使用 `curl GET https://id.starry.phd/v1/apps/clock/config`，回應通過 `app_id=clock`、`status=active`、`min_version=0.0.0` 的驗證。這只驗證中央公開登記，不是端到端登入／扣量測試。
+- staging Clock D1 已套 0004，尚未部署新版 Worker；正式未合併 PR、未改 Worker、未開扣量。正式部署需經業主核准。
+
+### 2026-11-07.14｜iPhone / Web 共用登入修正
+
+- **新基準是業主 2026-11-07.14（2026-11-07 23:25 台灣時間）**；完整 11 項審查與操作限制見 [STARRY-ID-2026-11-07.14-AUDIT.md](STARRY-ID-2026-11-07.14-AUDIT.md)；舊 .12 審查保留為歷史，遇衝突以 .14 為準。
+- 官方 `sdk/starry-client.ts` 已更新（新增 shareWebSignIn／syncWebSignIn／completeWebSsoCheck／signOutWebEverywhere）；OpenAPI 3.1 已同步。Web 由 `tools/build_web_sdk.mjs` 產生官方 SDK 的同源 JS，`tools/build_worker.py` 打包，PWA Cache 升級。
+- **iOS 跨 App Keychain**：由前版 `$(AppIdentifierPrefix)phd.starry.sso` 改為 v14 唯一固定 `$(AppIdentifierPrefix)phd.starry.shared`，放在 `ios.entitlements.keychain-access-groups` 首位且只保留此共用群組。使用已安裝的 Expo SecureStore 存取 `starry.sso`，`keychainService=starry-sso-v1`；Keychain 在未指定 accessGroup 時預設使用第一個已簽章 entitlement group。**不在 App 自行填 Apple Team ID**。其他繁星 iOS App 必須採相同 Keychain 項目，真機與 EAS 簽章驗收才算完成。
+- **Web 同一瀏覽器跨繁星網頁登入**：登錄 Relay／Passkey 成功後呼叫 `shareWebSignIn({returnUrl:'https://clock.starry.phd/'})`；每次頁面載入執行有 5 分鐘節流的 `syncWebSignIn`，callback 優先執行 `completeWebSsoCheck` 再處理 Relay；登出使用 `signOutWebEverywhere`。與手機原生 App 仍是兩個登入環境，不能稱為跨網頁／原生 SSO。
+- **Android 共用登入改列選做**：不為此阻擋上架／驗收；仍須另行核對 Passkey 之 Play 簽章與 EAS APK 不同指紋。
+- 正式 Cloudflare、Starry ID、商店未更動。PR #15 保持 Draft，CI 及 staging／實機驗收通過後再送人工核准；不能聲稱已實際完成裝置／瀏覽器端到端 SSO。

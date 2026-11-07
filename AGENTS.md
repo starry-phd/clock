@@ -9,7 +9,7 @@
 
 - 每位 Starry 會員各有獨立月額度；相同會員在授權的 Starry Apps 共用，跨會員不共用；H-Global 不使用。
 - 已授權 AI、非 AI 服務皆可依核准的任務類型扣額度（例如 `clock.preset_create`、深度地名查詢）；不能把非 AI 消耗偽裝為 `clock.ai`。
-- 由 Owner 決定每月額度及各服務消耗量 X；任何新增的收費服務必須先在 Starry ID Admin Lite 建立獨立任務類型並以已核准數值對接。
+- Starry ID Owner 決定中央免費月額度，Clock Owner 決定 Clock 各服務消耗量 X。依 Starry ID 2026-11-07 現行契約，中央不再建立或管理任務類型／單位費率表；每個 App 後端使用 `clock.` 開頭的合法 `task_type` 與實際 `units=X` 呼叫中央預留 API，且應提供可辨識的 `task_label`。
 - 每月 1 日（台灣時間）恢復月額度，剩餘不累積、不販售、不轉讓、不儲值、不透支，不等同法幣或付費商品。
 - 只允許**Clock 後端**以 Secret `STARRY_BATTERY_KEY` 和會員 Access Token 進行預留；成功後 commit、失敗／取消／逾時 release；使用冪等鍵避免重複扣額。Starry ID 不可連線時拒絕依賴 Battery 的操作，但免費倒數可繼續離線使用。
 - 不可將金鑰放在 Expo 原生程式、Web bundle、GitHub、日誌或 API 回應中。不得直接修改 Starry ID 的程式、資料庫與設定。
@@ -18,7 +18,7 @@
 
 ### 版本差異處理
 
-2026-11-07 在 Google Docs「DEV-A｜Starry Battery 電池艙｜專責 AI 人工審閱交接包」已正式改為「會員共用的消費用量月額度」。`starry-phd/id` 的 `docs/integration-guide.md` 與 `openapi/starry-id.v1.json` 某些文字仍稱「免費 AI 用量」，此屬未同步的說明文字；保留其現有 API 契約，不改 Starry ID。若實際 API 拒絕非 AI 任務，停止扣量，要求中央模組補齊任務設定，不自行繞過。
+2026-11-07 在 Google Docs「DEV-A｜Starry Battery 電池艙｜專責 AI 人工審閱交接包」已正式改為「會員共用的消費用量月額度」。同日 `starry-phd/id` 的新版 `docs/integration-guide.md` 第 9 節及 `src/battery/battery.ts` 確認：**中央直接使用 App 傳入的合法 `task_type` 和 `units`，不需要 `battery_task_types` 表或 Admin Lite 任務登記**；部分舊文字仍稱「免費 AI 用量」，以現行 API 實作為準。若 API 拒絕非 AI 任務，先核對 Clock 專用服務金鑰、會員 Token 的 `app_id`、合法任務代碼與額度／上限，再交由中央模組修正其責任範圍；不可修改 Starry ID 或繞過授權。
 
 ## Expo App ≡ WEB 網頁版：功能同等規則
 

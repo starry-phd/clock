@@ -75,3 +75,123 @@ test('battery outage: native and web explicitly replace an existing preset for f
  assert.match(native,/免費取代既有用途（不新增、不扣電池）/);
  assert.match(native,/不會增加第 4 組，也不會消耗任何電池/);
 });
+
+
+// These are isolated D1/Starry HTTP doubles: they never touch the central DB,
+// real member tokens, a paid service, or an actual Cloudflare staging environment.
+function fakeClockDb(){
+ const pricing={feature:'clock.preset_create',label:'第 4 組起新增計時器',units:2,enabled:1,version:9};
+ const requests=new Map(),presets=new Map();
+ const key=(u,id)=>u+':'+id;
+ return {pricing,requests,presets,prepare(sql){
+  return {bind(...args){
+   return {
+    async first(){
+     if(sql.includes('FROM clock_pricing WHERE feature='))return pricing;
+     if(sql.includes('FROM clock_requests WHERE user_id='))return requests.get(key(args[0],args[1]))||null;
+     if(sql.includes('FROM clock_presets WHERE user_id=')){
+      const rec=[...presets.values()].find(x=>x.user_id===args[0]&&x.request_id===args[1]&&x.state==='active');
+      return rec?{id:rec.preset_id,name:rec.name,durationSeconds:rec.duration_seconds,paidUnits:rec.paid_units}:null;
+     }
+     throw Error('Unknown D1 first: '+sql);
+    },
+    async all(){
+     if(sql.includes('FROM clock_free_presets'))return {results:[0,1,2].map(slot=>({slot,id:['break','opening','speech'][slot],name:'免費',durationSeconds:300,version:1}))};
+     return {results:[pricing]};
+    },
+    async run(){
+     let changes=0;
+     if(sql.startsWith('INSERT OR IGNORE INTO clock_requests')){
+      const [user_id,request_id,preset_id,payload_hash,state,charge_units]=args;
+      const k=key(user_id,request_id);
+      if(!requests.has(k)){requests.set(k,{user_id,request_id,preset_id,payload_hash,state,charge_units,reservation_id:null});changes=1;}
+     }else if(sql.startsWith('INSERT OR IGNORE INTO clock_presets')){
+      const [user_id,preset_id,name,duration_seconds,request_id]=args;
+      const k=key(user_id,request_id);
+      if(!presets.has(k)){presets.set(k,{user_id,preset_id,name,duration_seconds,request_id,state:'pending',paid_units:0});changes=1;}
+     }else if(sql.startsWith('UPDATE clock_requests SET reservation_id=')){
+      const rec=requests.get(key(args[2],args[3]));
+      if(rec){rec.reservation_id=args[0];changes=1;}
+     }else if(sql.startsWith("UPDATE clock_presets SET state='active',paid_units=")){
+      const rec=presets.get(key(args[2],args[3]));
+      if(rec){rec.state='active';rec.paid_units=args[0];changes=1;}
+     }else if(sql.startsWith("UPDATE clock_requests SET state='committed'")){
+      const rec=requests.get(key(args[1],args[2]));
+      if(rec){rec.state='committed';changes=1;}
+     }else if(sql.startsWith('UPDATE clock_requests SET state=?')){
+      const rec=requests.get(key(args[3],args[4]));
+      if(rec){rec.state='failed';rec.error_code=args[1];changes=1;}
+     }else if(sql.startsWith("DELETE FROM clock_presets WHERE")){
+      const rec=presets.get(key(args[0],args[1]));
+      if(rec?.state==='pending'){presets.delete(key(args[0],args[1]));changes=1;}
+     }else{
+      throw Error('Unknown D1 run: '+sql);
+     }
+     return {meta:{changes}};
+    }
+   };
+  }};
+ }};
+}
+test('central v2 contract: X units charged once, Owner price changes do not break replay, rejected reservations do not save',async()=>{
+ const oldFetch=globalThis.fetch;
+ globalThis.crypto??=(await import('node:crypto')).webcrypto;
+ let centralMode='ok',centralRole='owner',reserved=0,committed=0,released=0;
+ const response=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json'}});
+ globalThis.fetch=async(input,init={})=>{
+  const path=new URL(String(input)).pathname;
+  if(path==='/v1/me')return response({staff_role:centralRole});
+  if(path==='/v1/battery/reservations'){
+   const b=JSON.parse(init.body);
+   assert.equal(b.task_type,'clock.preset_create');
+   assert.equal(b.task_label,'第 4 組起新增計時器');
+   assert.equal(b.units,2);
+   reserved++;
+   if(centralMode==='cap')return response({error:{code:'BATTERY_APP_CAP'}},409);
+   if(centralMode==='maintenance')return response({error:{code:'SERVICE_UNAVAILABLE'}},503);
+   if(centralMode==='insufficient')return response({error:{code:'BATTERY_INSUFFICIENT'}},409);
+   return response({reservation_id:'test-reservation-'+reserved,task_type:b.task_type,status:'reserved',units:2,amount:centralMode==='mismatch'?4:2,replayed:false},201);
+  }
+  if(path.endsWith('/commit')){committed++;return response({status:'committed',charged:2});}
+  if(path.endsWith('/release')){released++;return response({status:'released'});}
+  throw Error('Unexpected central path: '+path);
+ };
+ const makeEnv=(db)=>({DB:db,STARRY_BATTERY_KEY:'mock-only-not-a-secret',CLOCK_OWNER_USER_IDS:'member-1',BATTERY_CHARGES_ENABLED:'true'});
+ const create=(id)=>new Request('https://clock-api.example/v1/presets',{method:'POST',headers:{authorization:'Bearer mock-member'},body:JSON.stringify({
+  preset_id:'preset-'+id,request_id:'request-'+id,name:'專案倒數',duration_seconds:300,accepted_units:2
+ })});
+ const verify=async()=>({sub:'member-1',app_id:'clock'});
+ try{
+  const db=fakeClockDb(),env=makeEnv(db);
+  const first=await handleClock(create('00001'),env,verify);
+  assert.equal(first.status,201,JSON.stringify(await first.clone().json()));
+  assert.equal((await first.json()).charged_units,2);
+  assert.equal([...db.presets.values()][0].state,'active');
+  assert.equal(reserved,1);assert.equal(committed,1);
+  // A completed retry is a read, even after the central kill switch and X changed.
+  env.BATTERY_CHARGES_ENABLED='false';db.pricing.enabled=0;db.pricing.units=5;
+  const replay=await handleClock(create('00001'),env,verify);
+  assert.equal(replay.status,200);
+  assert.equal((await replay.json()).replayed,true);
+  assert.equal(reserved,1);assert.equal(committed,1);
+  env.BATTERY_CHARGES_ENABLED='true';
+  db.pricing.enabled=1;db.pricing.units=2;
+  for(const [mode,id,code] of [['mismatch','00002','BATTERY_PRICE_MISMATCH'],['cap','00003','BATTERY_APP_CAP'],['insufficient','00004','BATTERY_INSUFFICIENT'],['maintenance','00005','SERVICE_UNAVAILABLE']]){
+   centralMode=mode;
+   const res=await handleClock(create(id),env,verify);
+   const data=await res.json();
+   assert.equal(res.status,mode==='maintenance'?503:409);
+   assert.equal(data.error?.code,code);
+   assert.equal([...db.presets.values()].filter(x=>x.state==='active').length,1);
+   assert.equal(db.requests.get('member-1:request-'+id)?.state,'failed');
+  }
+  assert.equal(released,1,'price mismatch releases reservation');
+  assert.equal(committed,1,'rejected cases do not commit Battery');
+  const ownerPut=()=>new Request('https://clock-api.example/v1/admin/pricing',{method:'PUT',headers:{authorization:'Bearer mock-member'},body:JSON.stringify({feature:'clock.preset_create',units:3,enabled:true,version:9})});
+  centralRole='admin';
+  const denied=await handleClock(ownerPut(),env,verify);
+  assert.equal(denied.status,403,'stale Clock allowlist must not override central Owner revocation');
+ }finally{
+  globalThis.fetch=oldFetch;
+ }
+});
