@@ -144,7 +144,7 @@ export function StarryAccountPanel(){
         <OwnerPricingPanel userId={me.user_id}/>
         <Text style={s.info}>月額度跨已授權 Starry Apps 共用，適用核准的 AI 與非 AI 服務；每月 1 日（台灣時間）恢復。此頁僅查詢，不會扣額。</Text>
       </View>:null}
-      <Btn label="登出所有繁星 App" onPress={()=>{void action(async()=>{await signOut();setMe(null);});}}/>
+      <Btn label={Platform.OS==='ios'?'登出所有繁星 App':'登出 Clock（Android 共用登入待驗證）'} onPress={()=>{void action(async()=>{await signOut();setMe(null);});}}/>
       <Btn label="登出所有裝置" onPress={()=>{void action(async()=>{if(await confirmAction('登出所有裝置','這會使全部 Starry ID 裝置的登入狀態失效。')){await signOutEverywhere();setMe(null);}});}}/>
       <Btn danger label="永久刪除 Starry 會員帳號" onPress={()=>{void deleteSelf();}}/>
     </>}
