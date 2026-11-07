@@ -17,9 +17,7 @@
 
 ## 必須完成才可以啟用真正扣 X 顆
 
-1. 用現有 Owner 身分登入 [Starry ID Admin Lite Battery](https://id.starry.phd/admin/battery)，新增或確認獨立非 AI 任務 `clock.preset_create`，屬 App `clock`，**每單位消耗 1 顆**，單次上限至少 X（若 X 可設定到 30，中央單次上限設為 30）。不能拿 `clock.ai` 冒充非 AI 功能。
-
-   - Admin Lite 的「App」選 **Clock（clock）**；「任務代碼」欄只填 **`preset_create`**（系統會自動組成 `clock.preset_create`）。「顯示名稱」填 **新增第 4 組以上的計時器**；「每單位消耗」填 **1**；「單次最多幾單位」填 **30**；「逾時秒數」留空；勾選「啟用」。不要輸入 `clock.preset.create`（多一個句點，中央不接受）。
+1. **2026-11-07.9 新版中央契約**：Starry ID 不再建立 Battery 任務類型／單位費率表。Clock Owner 在 Clock 自己的設定頁選擇 `clock.preset_create` 與 X 顆；Clock 後端以 `task_type='clock.preset_create'`、`task_label='第 4 組起新增計時器'`、`units=X` 預留。中央直接以 X 顆計價，每單位 1 顆；中央每次可預留最多 100 顆，Clock UI 目前限制 X=0～30。**不需也不可以在 Starry ID DB 補建 `battery_task_types`。**
 2. Cloudflare Workers 的 **clock-api** 已有 `STARRY_BATTERY_KEY`（僅能查到名稱，仍須驗證是否有效），但 **clock-api-staging** 尚缺。請依 Owner 核准於 Starry ID Admin Lite 取得 staging 可用金鑰並直接存入 Cloudflare Workers Secrets；不要貼到聊天室、GitHub、App 或日誌。正式 `clock` Web Worker 雖也有此 Secret，前端不可拿來直接扣點。
 3. 確認 Clock API Worker Secrets 的 `CLOCK_OWNER_USER_IDS`，值為你在 Starry ID 的精確 `user_id`（若多位 Owner，以逗號分隔）。**這不是密碼**，但是授權白名單，務必只在 Worker Secret 設定。staging 與正式環境都需設定。不得用 Email 或姓名作 Owner 認證。
 4. 登入 Clock → 設定 → Starry ID → 超級管理員，在 `clock.preset_create` 輸入 X（0～30）並選擇啟用，按「儲存」；後端會留稽核紀錄。
@@ -44,12 +42,12 @@
 
 - Clock 正式 Web 與 Expo 程式已改用同一個安全 API：`https://clock.starry.phd/api/clock`；Web 透過 Cloudflare Worker service binding 轉送 `clock-api`，不再直接跨網域呼叫 workers.dev，修復 `Failed to fetch`。
 - Cloudflare `clock-api` 和 staging 的 `CLOCK_OWNER_USER_IDS` 已從 Starry ID **唯讀** owner 角色結果安全設定，不顯示 Owner UUID；Starry ID 資料未被修改。
-- 中央 `starry-battery` **唯讀**查核：`clock` 已有服務金鑰登記、曾核對 `clock.ai`；最新 2026-11-07 唯讀盤點發現中央 DB 已無 `battery_task_types` 表，**無法據此確認** `clock.preset_create` 是否正式登記；需核對 Starry ID 最新 schema／API／Admin Lite，不可直接修改中央 D1。
+- 中央 `starry-battery` **唯讀**查核曾發現 DB 沒有 `battery_task_types`；依 2026-11-07.9 現行 `starry-phd/id` 第 9 節及程式設計，**中央本就不須此表，也不須登記任務**。真正阻礙是 Clock staging 缺金鑰與真實驗收；不可修改中央 D1。
 - `clock-api` Secret **已有** `STARRY_BATTERY_KEY`（但 staging API 尚缺）；既有 `clock` 網站 Worker 有此 Secret，但 Cloudflare 不允許讀取原值。請到 Starry ID Admin Lite 的 Clock App 頁重新產生專用金鑰，直接設定到 `clock-api` 與 staging Workers Secrets（不得貼到聊天、Git）。
-- 所有後端扣量開關 `BATTERY_CHARGES_ENABLED=false`，會員原有計時功能正常。中央任務、Secret 完整設定後，先在 staging 驗證並確認價目表 `X`，才開放扣點。
+- 所有後端扣量開關 `BATTERY_CHARGES_ENABLED=false`，會員原有計時功能正常。Clock Owner 定價、Secret 完整設定後，先在 staging 驗證真正預留／扣量與帳本 X 一致，才開放正式扣點。
 
 ## 最新可用儲存方式（2026-11-07）
 
 - 2026-11-07 已合併 [PR #13](https://github.com/starry-phd/clock/pull/13)，正式 Web 增加「**免費取代並儲存**」：用新名稱／時間**明確取代**一組現有計時器，仍維持 3 組、不扣點；Expo 相同功能程式已同步，但商店安裝版尚未更新。
-- 目前不可真的扣點新增第 4 組。Cloudflare Clock 的價格資料為 `clock.preset_create`、2 顆／次、`enabled=1`，但正式與 staging `BATTERY_CHARGES_ENABLED=false`。中央 Battery D1 的唯讀查核沒有 `battery_task_types` 表；不能自行修改 Starry ID。
+- 目前不可真的扣點新增第 4 組。Cloudflare Clock 的價格資料為 `clock.preset_create`、2 顆／次、`enabled=1`，但正式與 staging `BATTERY_CHARGES_ENABLED=false`。中央最新規格不需 `battery_task_types` 表。不能自行修改 Starry ID。
 - 詳細最新盤點、CI 及交接優先順序：**[CLOCK-AI-HANDOFF.md](CLOCK-AI-HANDOFF.md)**。
