@@ -58,3 +58,12 @@
 本次修復分支對照新 Starry ID 串接指令。中央 Battery 無任務類型表是新契約設計，不再要求新增資料表或後台任務登記。已修正 Clock API 的任務標籤、額度錯誤碼、重試恢復、中央 Owner 驗權、JWT 公鑰快取，以及兩端帳號刪除提示／Quantum 顯示／客服入口。**模擬測試不等同已啟用真實扣量。**
 
 尚未完成的跨平台工作：全量換用官方 `starry-client.ts`／`starry-sdk.ts`、Passkey 登入與管理、回前景 App Gate／公告完整驗收、前三組跨裝置一致性、Expo 原生 EAS 實機驗收。Android Passkey 須由業主按實際 APK／Play 簽章登記 SHA-256；測試用 staging Secret 仍缺。這些工作不得以已符合宣稱。
+
+## 7. 本輪續作實測與安全邊界（2026-11-07）
+
+- GitHub PR #15：<https://github.com/starry-phd/clock/pull/15>，草稿；首次 CI 全綠，續作修正仍須確認其最新 HEAD 的 CI。
+- Expo iOS/Android 已引入與 Starry ID GitHub 完全相同的 `sdk/starry-client.ts`，登入中繼、Token refresh/rotation 改由 SDK 處理，沿用原 Refresh Token 儲存鍵，清除舊版磁碟 Access Token。**Web/PWA 尚沿用既有安全中繼程式碼，未完成官方 SDK 轉換**；不要宣稱三端 SDK 遷移完畢。原生也仍需要真正的 Passkey native adapter 與開發建置。
+- Cloudflare Workers 唯讀設定：`clock-api` 的 `BATTERY_CHARGES_ENABLED=false`、`STARRY_BATTERY_KEY` 已配置名稱；`clock-api-staging` 的 `BATTERY_CHARGES_ENABLED=false`、`STARRY_BATTERY_KEY` **缺少**。
+- **Clock 專用 D1 唯讀核對**（非中央資料庫）：`clock-app-db-staging` 的 `clock.preset_create`：**2 顆／次、enabled=0、version=2**；`clock-app-db`：**2 顆／次、enabled=1、version=9**。兩者 `clock_presets` 與 `clock_requests` 均為 0。故 staging 補金鑰後還須經過真正 Owner 身分驗權，從 Clock 自己的管理 API 開啟該功能，**不可直接繞過 Owner 修改 D1**。
+- 待業主安全配置 staging Secret、提供授權測試會員後，僅在 staging 由 Owner 啟用費率與 `BATTERY_CHARGES_ENABLED=true`，驗證至少：真實扣 X、中央與 Clock 對帳、餘額不足、上限、異常 release、冪等重播、權限、跨會員隔離。未過關則 staging 保持關閉、正式不部署。
+- Expo／Web 免費前 3 組跨裝置歸戶一致性仍是**正式扣量之前的獨立阻礙**，需先實作及驗收不丟失舊資料的遷移方案。
