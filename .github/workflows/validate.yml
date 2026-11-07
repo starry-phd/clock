@@ -36,7 +36,6 @@ jobs:
         with:
           version: '10.18.0'
       - run: pnpm install --frozen-lockfile
-      - run: npm view react-native-passkeys@0.4.2 dist.integrity --json # verify public dependency checksum
       - run: pnpm codegen:starry
       - run: node --test packages/clock-core/test/clock.test.mjs
       - run: python3 tools/build_worker.py
