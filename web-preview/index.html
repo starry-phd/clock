@@ -511,7 +511,7 @@ async function loadMemberWebUI(){
  await reloadWebPasskeys();
  await loadOwnerPrices();
 }
-function logoutWebLocal(){webAccess=null;webMember=null;cloudPresetIds=new Set();freePresetSlots=[];freeSyncReady=false;sessionStorage.removeItem(refreshingKey);sessionStorage.removeItem(pendingKey);setMemberButtons(null);$('batteryPanel').classList.add('hidden');$('ownerPricing').classList.add('hidden');$('batteryBalance').textContent='';}
+function logoutWebLocal(){webAccess=null;webMember=null;cloudPresetIds=new Set();freePresetSlots=[];freeSyncReady=false;$('passkeyList').replaceChildren();sessionStorage.removeItem(refreshingKey);sessionStorage.removeItem(pendingKey);setMemberButtons(null);$('batteryPanel').classList.add('hidden');$('ownerPricing').classList.add('hidden');$('batteryBalance').textContent='';}
 function bytesHex(bytes){return Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('')}
 async function relayWeb(provider,operation='login'){
  $('accountError').textContent='';
