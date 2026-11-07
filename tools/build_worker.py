@@ -1,13 +1,15 @@
 from pathlib import Path
-import json, gzip, base64, hashlib
-base=Path(__file__).resolve().parents[1] / "web-preview"
-assets={'/':(base/'index.html').read_text(),'/sw.js':(base/'sw.js').read_text(),'/manifest.webmanifest':(base/'manifest.webmanifest').read_text(),'/icon.svg':(base/'icon.svg').read_text()}
+import json, gzip, base64, hashlib, subprocess
+root=Path(__file__).resolve().parents[1]
+subprocess.run(['node',str(root/'tools/build_web_sdk.mjs')],cwd=root,check=True)
+base=root/'web-preview'
+assets={'/':(base/'index.html').read_text(),'/sw.js':(base/'sw.js').read_text(),'/starry-client.js':(base/'starry-client.js').read_text(),'/manifest.webmanifest':(base/'manifest.webmanifest').read_text(),'/icon.svg':(base/'icon.svg').read_text()}
 raw=json.dumps(assets,ensure_ascii=False,separators=(',',':')).encode('utf-8')
 b64=base64.b64encode(gzip.compress(raw,compresslevel=9,mtime=0)).decode()
 style=assets['/'].split('<style>',1)[1].split('</style>',1)[0]
 script=assets['/'].split('<script>',1)[1].split('</script>',1)[0]
 sha=lambda x:base64.b64encode(hashlib.sha256(x.encode()).digest()).decode()
-csp="default-src 'none'; script-src 'sha256-"+sha(script)+"'; style-src 'sha256-"+sha(style)+"'; connect-src 'self' https://id.starry.phd; worker-src 'self'; img-src 'self' data:; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+csp="default-src 'none'; script-src 'self' 'sha256-"+sha(script)+"'; style-src 'sha256-"+sha(style)+"'; connect-src 'self' https://id.starry.phd; worker-src 'self'; img-src 'self' data:; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 source='''// CLOCK v1.1, standalone Starry Cloudflare Worker. Does not touch Starry ID code.
 const BUNDLE = __BUNDLE__;
 let assetsPromise;
@@ -46,7 +48,7 @@ export default { async fetch(request, env){
   const key=(path==='/index.html'||path==='/auth/done')?'/':path;
   const assets=await getAssets();
   if (!Object.prototype.hasOwnProperty.call(assets,key)) return new Response('Not found',{status:404});
-  const types={'/':'text/html; charset=utf-8','/sw.js':'text/javascript; charset=utf-8','/manifest.webmanifest':'application/manifest+json; charset=utf-8','/icon.svg':'image/svg+xml; charset=utf-8'};
+  const types={'/':'text/html; charset=utf-8','/sw.js':'text/javascript; charset=utf-8','/starry-client.js':'text/javascript; charset=utf-8','/manifest.webmanifest':'application/manifest+json; charset=utf-8','/icon.svg':'image/svg+xml; charset=utf-8'};
   const headers={'Content-Type':types[key],'Cache-Control':'no-cache','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Permissions-Policy':'camera=(), microphone=(), geolocation=()'};
   if(key==='/') headers['Content-Security-Policy']=CSP;
   if(path==='/auth/done') headers['Cache-Control']='no-store';
