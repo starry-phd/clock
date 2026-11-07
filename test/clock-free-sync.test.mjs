@@ -57,7 +57,7 @@ const req=(url,method='GET',data)=>new Request('https://clock-api.example'+url,{
  ...(data?{body:JSON.stringify(data)}:{})
 });
 const verify=user=>async()=>({sub:user,app_id:'clock'});
-const body=async result=>({status:result.status,...await result.json()});
+const body=async result=>{const payload=await result.json();return {...payload,status:result.status,actionStatus:payload.status};};
 const seed=[
  {id:'break',name:'休息時間',durationSeconds:300},
  {id:'opening',name:'開場致詞',durationSeconds:180},
