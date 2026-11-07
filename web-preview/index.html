@@ -252,7 +252,7 @@ async function checkAppGate(){
 }
 $('appGateRetry').addEventListener('click',()=>{void checkAppGate()});
 const CLOCK_BACKEND='/api/clock';
-let webAccess=null,webMember=null,webRefreshPromise=null;
+let webAccess=null,webMember=null;
 const refreshingKey='clock:starry:refresh:v1',pendingKey='clock:starry:pending:v1';
 // Official single-file Starry ID SDK. Older sessions keep the exact same
 // Refresh Token key, so upgrading the web client doesn't sign members out.
@@ -273,23 +273,6 @@ async function starryReq(path,options={},access=null){
  const r=await fetch(STAR+path,{...options,headers,credentials:'omit'});
  if(!r.ok){const data=await r.json().catch(()=>({}));const error=new Error(data?.error?.message||'中央會員 HTTP '+r.status);error.code=data?.error?.code||'HTTP_'+r.status;error.status=r.status;throw error}
  return r.status===204?null:r.json();
-}
-async function refreshWeb(){
- if(!webRefreshPromise){
-  webRefreshPromise=(async()=>{
-   const current=sessionStorage.getItem(refreshingKey);
-   if(!current)throw new Error('請先登入');
-   const next=await starryReq('/v1/auth/refresh',{method:'POST',body:qs({refresh_token:current})});
-   if(!next?.refresh_token||!next?.access_token)throw new Error('Invalid Starry token rotation');
-   sessionStorage.setItem(refreshingKey,next.refresh_token);
-   webAccess=next.access_token;
-   return webAccess;
-  })().catch(error=>{
-   if(error.code==='REFRESH_REUSED'||error.status===401){webAccess=null;sessionStorage.removeItem(refreshingKey)}
-   throw error;
-  }).finally(()=>webRefreshPromise=null);
- }
- return webRefreshPromise;
 }
 async function webAuthorized(fn){
  const client=requireWebSdk();
@@ -495,7 +478,15 @@ function bytesHex(bytes){return Array.from(bytes,b=>b.toString(16).padStart(2,'0
 async function relayWeb(provider,operation='login'){
  $('accountError').textContent='';
  try{
-  const status=await starryReq('/v1/apps/clock/config');
+  if(operation==='login'){
+   const gate=await requireWebSdk().checkApp('1.1.1');
+   if(gate.state!=='ok')throw Error(gate.state==='unreachable'?'中央會員暫時無法連線':'Clock 暫時維護或需更新');
+   await requireWebSdk().beginRelayRedirect(provider,{returnUrl:REDIRECT});
+   return;
+  }
+  // Linking an additional provider is not a sign-in; keep the verified nonce
+  // and member token for the central /v1/me/identities endpoint.
+  const status=await requireWebSdk().getConfig();
   if(status.status!=='active')throw new Error('中央會員目前未啟用 Clock');
   const n=await starryReq('/v1/auth/nonce',{method:'POST',body:qs({app_id:APPID})});
   const state=bytesHex(crypto.getRandomValues(new Uint8Array(32)));
@@ -509,6 +500,17 @@ async function relayWeb(provider,operation='login'){
 }
 async function completeWebRelay(){
  if(location.pathname!=='/auth/done')return;
+ if(!sessionStorage.getItem(pendingKey)){
+  try{
+   const outcome=await requireWebSdk().completeRelayRedirect();
+   if(outcome)await loadMemberWebUI();
+  }catch(e){
+   const message=friendlyPasskeyError(e);
+   if(message)alertAccount(message);
+  }
+  return;
+ }
+ // Backward compatibility for a member already mid-redirect in the old client.
  const frag=location.hash.replace(/^#/,'');
  history.replaceState(null,'','/'); // remove sensitive token fragment before any network call
  const raw=sessionStorage.getItem(pendingKey);sessionStorage.removeItem(pendingKey);
@@ -542,17 +544,16 @@ webAction('addPasskey',createWebPasskey);
 webAction('reloadPasskeys',reloadWebPasskeys);
 webAction('linkGoogle',()=>relayWeb('google','link'));webAction('linkApple',()=>relayWeb('apple','link'));
 webAction('logoutMember',async()=>{
- try{await webAuthorized(t=>starryReq('/v1/auth/logout',{method:'POST'},t))}finally{logoutWebLocal()}
+ try{await requireWebSdk().signOut()}finally{logoutWebLocal()}
 });
 webAction('logoutAllMember',async()=>{
  if(!confirm('確定登出所有裝置嗎？'))return;
- await webAuthorized(t=>starryReq('/v1/auth/logout-all',{method:'POST'},t));logoutWebLocal()
+ await requireWebSdk().signOutEverywhere();logoutWebLocal()
 });
 webAction('consent',async()=>{
  if(!webMember)return;
  if(!confirm('請先閱讀 Starry ID 服務條款（https://id.starry.phd/terms）與隱私政策（https://id.starry.phd/privacy）。已閱讀且同意？'))return;
- const data={terms_version:webMember.consent.terms_version,privacy_version:webMember.consent.privacy_version};
- await webAuthorized(t=>starryReq('/v1/me/consents',{method:'POST',body:qs(data)},t));
+ await requireWebSdk().acceptConsent();
  await loadMemberWebUI();
 });
 webAction('editMember',async()=>{
@@ -566,7 +567,7 @@ webAction('editMember',async()=>{
 });
 webAction('deleteMember',async()=>{
  if(!confirm('確定立即永久刪除 Starry 會員帳號？無法撤回，且不會自動取消 App Store／Google Play 訂閱。'))return;
- await webAuthorized(t=>starryReq('/v1/me/deletion',{method:'POST',body:qs({confirm:true})},t));
+ await requireWebSdk().deleteAccount();
  logoutWebLocal();
 });
 webAction('contactSupport',()=>{
