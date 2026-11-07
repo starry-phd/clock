@@ -99,6 +99,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--apk", type=Path)
+    source.add_argument("--apk-url", help="HTTPS download URL of an already signed APK")
     source.add_argument("--eas-builds", type=Path, help="Saved eas build:list --json output")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -106,8 +107,10 @@ def main() -> None:
     build_id = None
     with tempfile.TemporaryDirectory(prefix="clock-signing-cert-") as temp:
         apk = args.apk
-        if args.eas_builds:
-            url, build_id = select_preview_build(json.loads(args.eas_builds.read_text()))
+        if args.eas_builds or args.apk_url:
+            url = args.apk_url
+            if args.eas_builds:
+                url, build_id = select_preview_build(json.loads(args.eas_builds.read_text()))
             apk = Path(temp) / "clock-preview.apk"
             download_apk(url, apk)
         fp = inspect(apk)
