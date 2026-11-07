@@ -13,7 +13,9 @@ import {
 } from '@clock/core';
 import {readAppConfig} from '@clock/auth-contract';
 import {StarryAccountPanel} from '../src/auth/StarryAccountPanel';
-import {loadClockPricing,createChargedPreset,readCloudPresets,editCloudPreset,removeCloudPreset} from '../src/auth/clockApi';
+import {loadClockPricing,createChargedPreset,readCloudPresets,editCloudPreset,removeCloudPreset,
+  initializeFreePresets,addFreePreset,editFreePreset,removeFreePreset, type FreePreset} from '../src/auth/clockApi';
+import {loadMember} from '../src/auth/session';
 
 const DATA_KEY = 'clock:preferences:v1';
 const COLORS = { bg:'#0B1220', panel:'#162338', muted:'#9CB1CA', fg:'#F7FAFF', mint:'#80F4D6', orange:'#FFCA75', line:'#29364A', danger:'#FF8E95' };
@@ -40,6 +42,8 @@ export default function ClockScreen() {
   const [settingSeconds,setSettingSeconds]=useState('10');
   const [ready,setReady]=useState(false);
   const [cloudIds,setCloudIds]=useState<string[]>([]);
+  const [freeSlots,setFreeSlots]=useState<FreePreset[]>([]);
+  const [freeSyncReady,setFreeSyncReady]=useState(false);
   const [saving,setSaving]=useState(false);
   const pendingCreate=useRef<{fingerprint:string;requestId:string;presetId:string}|null>(null);
   const [memberStatus,setMemberStatus]=useState('檢查中…');
@@ -110,24 +114,58 @@ export default function ClockScreen() {
     return()=>{clearInterval(t);s.remove()};
   },[play,setTimerSync,checkCentralGate]);
 
-  // Merge server-authoritative charged presets on the same Starry user_id.
-  // Existing device presets are preserved; they are grandfathered and not back-charged.
+  // Cloud is authoritative for a signed-in member's three free slots + paid extras.
+  // If old local presets differ, back them up before switching to the cloud copy.
+  // Offline and unsigned-in timers keep working exactly as before.
   useEffect(()=>{
     if(!ready)return;
     let live=true;
-    readCloudPresets().then(({presets:remote})=>{
+    setFreeSyncReady(false);
+    void (async()=>{
+      const {presets:remote}=await readCloudPresets();
       if(!live)return;
       setCloudIds(remote.map(p=>p.id));
-      setPresets(old=>{
-        const current=new Set(old.map(p=>p.id));
-        const additions=remote.filter(p=>!current.has(p.id)).map(p=>({
-          id:p.id,name:p.name,durationSeconds:p.durationSeconds
-        }));
-        return additions.length?sanitizePresets([...old,...additions]):old;
-      });
-    }).catch(()=>{}); // login optional; offline clock must still work.
+      const member=await loadMember();
+      if(!member||!live)return;
+      const oldOwner=await AsyncStorage.getItem('clock:free-owner:v1');
+      const saved=presetsRef.current;
+      const remoteIds=new Set(remote.map(p=>p.id));
+      const localFree=oldOwner&&oldOwner!==member.user_id
+        ? DEFAULT_PRESETS
+        : saved.filter(p=>!remoteIds.has(p.id)).slice(0,3);
+      const seed=localFree.length?localFree:DEFAULT_PRESETS;
+      let free;
+      try{free=(await initializeFreePresets(seed)).presets;}catch{
+        // Older deployed API / temporary outage: preserve all local timers,
+        // and continue to merge the separately stored paid timers.
+        if(live)setPresets(old=>{
+          const existing=new Set(old.map(p=>p.id));
+          return sanitizePresets([...old,...remote.filter(p=>!existing.has(p.id))]);
+        });
+        return;
+      }
+      if(!live)return;
+      const canonical:ClockPreset[]=[...free.map(p=>({id:p.id,name:p.name,durationSeconds:p.durationSeconds})),...remote];
+      const known=new Set(canonical.map(p=>p.id));
+      const legacy=saved.filter(p=>!known.has(p.id));
+      if(legacy.length){
+        const backupKey='clock:legacy-free-backup:v2:'+(oldOwner||member.user_id);
+        const existing=await AsyncStorage.getItem(backupKey);
+        const prior:ClockPreset[]=existing?sanitizePresets(JSON.parse(existing)):[];
+        const seen=new Set(prior.map(p=>p.id));
+        await AsyncStorage.setItem(backupKey,JSON.stringify([...prior,...legacy.filter(p=>!seen.has(p.id))]));
+      }
+      await AsyncStorage.setItem('clock:free-owner:v1',member.user_id);
+      if(!live)return;
+      setFreeSlots(free);
+      setFreeSyncReady(true);
+      const next=sanitizePresets(canonical);
+      setPresets(next);
+      const select=next.find(p=>p.id===selectedRef.current)||next[0];
+      if(select){setSelectedId(select.id);setTimerSync(newTimer(select.durationSeconds));}
+    })().catch(()=>{}); // offline countdown never depends on login
     return()=>{live=false};
-  },[ready,settings]);
+  },[ready,settings,setTimerSync]);
 
   const choose=useCallback((p:ClockPreset)=>{setSelectedId(p.id);setTimerSync(newTimer(p.durationSeconds));},[setTimerSync]);
   const toggle=useCallback(()=>{
@@ -146,7 +184,7 @@ export default function ClockScreen() {
     if(!editor.id&&presets.length>=50){Alert.alert('已達上限','最多儲存 50 組用途。');return;}
     setSaving(true);
     try{
-      if(!editor.id&&presets.length>=3){
+      if(!editor.id&&presets.length>=3&&(!freeSyncReady||freeSlots.length>=3)){
         const p=(await loadClockPricing()).features.find(x=>x.feature==='clock.preset_create');
         if(!p||!p.enabled||!p.available){Alert.alert('電池服務尚未開放','暫時無法以電池新增第 4 組。你可在這個視窗下方免費選擇一組既有用途取代，不增加計時器總數，也不扣電池。');return;}
         const accepted=await new Promise<boolean>(resolve=>Alert.alert(
@@ -163,6 +201,14 @@ export default function ClockScreen() {
         await createChargedPreset(next,requestId,p.units);
         pendingCreate.current=null;
         setCloudIds(old=>[...old,id]);
+      }else if(!editor.id&&freeSyncReady){
+        // A free slot remains free even when this member already has paid extras.
+        const result=await addFreePreset(next);
+        setFreeSlots(result.presets);
+      }else if(editor.id&&freeSyncReady&&freeSlots.some(p=>p.id===editor.id)){
+        const existing=freeSlots.find(p=>p.id===editor.id)!;
+        const result=await editFreePreset({...existing,...next});
+        setFreeSlots(result.presets);
       }else if(editor.id&&cloudIds.includes(editor.id)){
         await editCloudPreset(next);
       }
@@ -170,7 +216,7 @@ export default function ClockScreen() {
       setPresets(updated);choose(next);setEditor(null);
     }catch(e){Alert.alert('無法儲存',(e as Error).message||'新增失敗，未完成扣量確認。');}
     finally{setSaving(false);}
-  },[editor,presets,choose,cloudIds,saving]);
+  },[editor,presets,choose,cloudIds,saving,freeSyncReady,freeSlots]);
   // Safe fallback when central Battery charging is unavailable:
   // explicitly replace a selected existing preset; never create a fourth or charge.
   const replaceFree=useCallback((target:ClockPreset)=>{
@@ -187,7 +233,11 @@ export default function ClockScreen() {
         void (async()=>{
           setSaving(true);
           try{
-            if(cloudIds.includes(target.id))await editCloudPreset(next);
+            const free=freeSyncReady?freeSlots.find(p=>p.id===target.id):null;
+            if(free){
+              const result=await editFreePreset({...free,...next});
+              setFreeSlots(result.presets);
+            }else if(cloudIds.includes(target.id))await editCloudPreset(next);
             setPresets(old=>old.map(p=>p.id===target.id?next:p));
             choose(next);setEditor(null);
           }catch(e){Alert.alert('無法儲存',(e as Error).message||'既有用途未被修改');}
@@ -195,12 +245,16 @@ export default function ClockScreen() {
         })();
       }}]
     );
-  },[editor,saving,presets.length,cloudIds,choose]);
+  },[editor,saving,presets.length,cloudIds,choose,freeSyncReady,freeSlots]);
   const remove=useCallback(async()=>{
     if(!editor?.id||presets.length===1||saving)return;
     setSaving(true);
     try{
-      if(cloudIds.includes(editor.id)){
+      const free=freeSyncReady?freeSlots.find(p=>p.id===editor.id):null;
+      if(free){
+        const result=await removeFreePreset(free);
+        setFreeSlots(result.presets);
+      }else if(cloudIds.includes(editor.id)){
         await removeCloudPreset(editor.id); // no refund for prior consumed quota
         setCloudIds(old=>old.filter(x=>x!==editor.id));
       }
@@ -208,7 +262,7 @@ export default function ClockScreen() {
       setPresets(updated);if(selectedId===editor.id)choose(updated[0]);setEditor(null);
     }catch(e){Alert.alert('無法刪除',(e as Error).message||'請稍後再試');}
     finally{setSaving(false);}
-  },[editor,presets,selectedId,choose,cloudIds,saving]);
+  },[editor,presets,selectedId,choose,cloudIds,saving,freeSyncReady,freeSlots]);
   const saveSettings=()=>{
     const n=Number(settingSeconds);
     if(!Number.isInteger(n)||n<0||n>120){Alert.alert('提醒秒數','請輸入 0～120 秒。0 表示只在歸零時響鈴。');return;}
