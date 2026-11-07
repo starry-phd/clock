@@ -11,7 +11,10 @@
       "bundleIdentifier": "phd.starry.clock",
       "supportsTablet": true,
       "icon": "./assets/icon.png",
-      "buildNumber": "1"
+      "buildNumber": "1",
+      "associatedDomains": [
+        "webcredentials:id.starry.phd"
+      ]
     },
     "android": {
       "package": "phd.starry.clock",
