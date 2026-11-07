@@ -205,10 +205,10 @@ export default function ClockScreen() {
     try{
       if(!editor.id&&presets.length>=3&&(!freeSyncReady||freeSlots.length>=3)){
         const p=(await loadClockPricing()).features.find(x=>x.feature==='clock.preset_create');
-        if(!p||!p.enabled||!p.available){Alert.alert('電池服務尚未開放','暫時無法以電池新增第 4 組。你可在這個視窗下方免費選擇一組既有用途取代，不增加計時器總數，也不扣電池。');return;}
+        if(!p||!p.enabled||!p.available){Alert.alert('🔋 電池服務尚未開放','暫時無法以 🔋 普通電池新增第 4 組。你可免費取代既有用途，不增加計時器總數，也不扣量。');return;}
         const accepted=await new Promise<boolean>(resolve=>Alert.alert(
-          '確認消耗繁星電池',
-          '新增這一組計時器需扣 '+p.units+' 顆電池。每月額度跨 Starry Apps 共用；只有新增成功才扣。',
+          '🔋 確認消耗繁星電池',
+          '新增這一組計時器需消耗 🔋 '+p.units+' 顆普通電池。每月額度跨 Starry Apps 共用；只有新增成功才扣。',
           [{text:'取消',style:'cancel',onPress:()=>resolve(false)},{text:'確認新增',onPress:()=>resolve(true)}],
           {cancelable:false}
         ));
@@ -247,7 +247,7 @@ export default function ClockScreen() {
     }
     const next={id:target.id,name,durationSeconds:minutes*60+seconds};
     Alert.alert('免費取代計時器',
-      '確定以「'+name+'」取代「'+target.name+'」？不會增加第 4 組，也不會消耗任何電池。',
+      '確定以「'+name+'」取代「'+target.name+'」？不會增加第 4 組，也不會消耗任何 🔋 普通電池。',
       [{text:'取消',style:'cancel'},{text:'確定取代',onPress:()=>{
         void (async()=>{
           setSaving(true);
@@ -331,14 +331,14 @@ export default function ClockScreen() {
 
     <Modal transparent visible={!!editor} animationType="fade" onRequestClose={()=>setEditor(null)}><KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS==='ios'?'padding':undefined}><View style={styles.modal}>
       <Text style={styles.modalTitle}>{editor?.id?'編輯用途':'新增用途'}</Text>
-      {!editor?.id&&<Text style={styles.note}>前 3 組免費。第 4 組起需先確認電池價格與扣量服務；服務暫停時，可在下方免費取代現有的一組用途。</Text>}
+      {!editor?.id&&<Text style={styles.note}>前 3 組免費。第 4 組起需先確認 🔋 普通電池價格與扣量服務；服務暫停時，可在下方免費取代現有的一組用途。</Text>}
       <Text style={styles.fieldLabel}>名稱</Text>
       <TextInput value={editor?.name||''} onChangeText={name=>setEditor(e=>e?{...e,name}:e)} maxLength={24} placeholder="例如：休息時間" placeholderTextColor={COLORS.muted} style={styles.input}/>
       <Text style={styles.fieldLabel}>倒數長度</Text>
       <View style={{flexDirection:'row',gap:10,alignItems:'center'}}><TextInput value={editor?.minutes||''} onChangeText={minutes=>setEditor(e=>e?{...e,minutes}:e)} keyboardType="number-pad" style={[styles.input,{flex:1}]} /><Text style={styles.fieldLabel}>分</Text><TextInput value={editor?.seconds||''} onChangeText={seconds=>setEditor(e=>e?{...e,seconds}:e)} keyboardType="number-pad" style={[styles.input,{flex:1}]} /><Text style={styles.fieldLabel}>秒</Text></View>
       <View style={styles.modalButtons}><Button label="取消" onPress={()=>setEditor(null)}/><Button label={saving?'處理中…':'儲存'} primary disabled={saving} onPress={()=>{void saveEditor();}}/></View>
       {!editor?.id&&presets.length>=3&&<View style={{gap:6,marginTop:12}}>
-        <Text style={styles.fieldLabel}>或免費取代既有用途（不新增、不扣電池）</Text>
+        <Text style={styles.fieldLabel}>或免費取代既有用途（不新增、不扣 🔋 普通電池）</Text>
         <ScrollView style={{maxHeight:116}} nestedScrollEnabled>
           {presets.map(p=><Pressable key={p.id} disabled={saving} accessibilityRole="button"
              onPress={()=>replaceFree(p)} style={{paddingVertical:9,paddingHorizontal:10,marginVertical:3,borderWidth:1,borderColor:COLORS.muted,borderRadius:8}}>
@@ -360,7 +360,7 @@ export default function ClockScreen() {
       <StarryAccountPanel />
       <View style={{marginTop:12,gap:7}}>
         <Button label="查看／恢復舊用途備份" onPress={()=>{void showLegacyBackups();}}/>
-        {legacyBackups!==null&&<Text style={styles.note}>{legacyBackups.length?'選擇備份用途後，再選「免費取代」即可恢復，不會直接扣電池。':'此會員目前沒有舊用途備份。'}</Text>}
+        {legacyBackups!==null&&<Text style={styles.note}>{legacyBackups.length?'選擇備份用途後，再選「免費取代」即可恢復，不會直接扣 🔋 普通電池。':'此會員目前沒有舊用途備份。'}</Text>}
         {legacyBackups!==null&&legacyBackups.length>0&&<ScrollView style={{maxHeight:110}}>
           {legacyBackups.map(p=><Pressable accessibilityRole="button" key={p.id}
             onPress={()=>{
