@@ -236,6 +236,10 @@ export async function handleClock(request,env,verify){
       if(env.BATTERY_CHARGES_ENABLED!=='true'||!env.STARRY_BATTERY_KEY)return problem('BATTERY_NOT_READY','電池扣量暫停，原請求尚未完成',503,origin);
       return settle(env,userId,prior,origin);
     }
+    // A new paid fourth timer requires three member-owned free slots.
+    // Replay of a previously committed or reserved transaction was handled
+    // above, so this guard cannot retroactively duplicate a charge.
+    if((await freeRows()).length<3)return problem('FREE_SLOTS_NOT_READY','請先登入並同步前三組免費計時器，之後才能確認第 4 組扣量',409,origin);
     const p=await price(env);
     if(!p||!p.enabled)return problem('FEATURE_DISABLED','付費新增尚未開放，原有計時器仍可正常使用',409,origin);
     if(accepted_units!==p.units)return problem('PRICE_CHANGED','費率已更新，請重新確認',409,origin);
