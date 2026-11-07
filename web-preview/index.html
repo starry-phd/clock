@@ -46,10 +46,18 @@ body.fullscreen #app{max-width:none}body.theater header,body.theater .mode-toggl
 <div id="settingsForm" class="hidden"><label class="label" for="lead">結束前幾秒響鈴（0～120）</label><input id="lead" class="textinput" inputmode="numeric" type="number" min="0" max="120" value="10"><p class="note">提前提醒只響一次；歸零時會再響鈴。設定 0 代表只在歸零響鈴。</p><div class="switch"><span>提示音效</span><button id="soundToggle">開啟</button></div><div style="margin:12px 0"><button type="button" id="legacyRestore" class="icon-btn" style="width:100%">查看／恢復舊用途備份</button><p class="note">備份不會自行覆寫計時器。選取舊用途後，可以免費取代既有用途。</p><div id="legacyBackupList" style="display:grid;gap:8px;max-height:160px;overflow:auto"></div></div><div class="identity"><strong>Starry ID 中央會員</strong><p id="memberStatus">正在檢查中央登記…</p><p id="accountUser">未登入</p><div id="batteryPanel" class="hidden" aria-live="polite"><strong>繁星電池艙 Starry Battery｜會員共用的消費用量月額度</strong><p id="batteryBalance">查詢中…</p><p class="note">與已授權的 Starry Apps 共用，適用核准的 AI 與非 AI 服務；每月 1 日（台灣時間）恢復。本頁只查詢，不扣額。</p></div><div id="ownerPricing" class="hidden" style="padding:12px;border:1px solid var(--accent);border-radius:12px;margin-top:12px"><strong>Clock 超級管理員｜電池消耗設定</strong><p class="note">每項 0～30 顆，設定保存於後端並留下稽核紀錄；未完成中央驗證前不會實際扣量。</p><div id="ownerPriceRows"></div><p id="ownerPriceMessage" class="note" role="status"></p></div><p id="accountError" role="alert" style="color:var(--red)"></p><div id="accountButtons" style="display:grid;gap:9px">
 <button type="button" id="loginGoogle" class="icon-btn">使用 Google 登入 Starry</button>
 <button type="button" id="loginApple" class="icon-btn">使用 Apple 登入 Starry</button>
+<button type="button" id="loginPasskey" class="icon-btn hidden">使用 Passkey 通行密鑰登入</button>
 <button type="button" id="consent" class="icon-btn hidden">閱讀並同意最新條款</button>
 <button type="button" id="editMember" class="icon-btn hidden">編輯會員顯示名稱</button>
 <button type="button" id="linkGoogle" class="icon-btn hidden">綁定 Google 登入</button>
 <button type="button" id="linkApple" class="icon-btn hidden">綁定 Apple 登入</button>
+<div id="passkeyPanel" class="hidden" style="border:1px solid var(--line);border-radius:12px;padding:12px">
+ <strong>Passkey 通行密鑰</strong>
+ <p class="note">使用裝置的指紋、Face ID 或螢幕鎖定。未支援的瀏覽器仍可用 Google／Apple 登入。</p>
+ <button type="button" id="addPasskey" class="icon-btn">新增通行密鑰</button>
+ <button type="button" id="reloadPasskeys" class="icon-btn" style="margin-top:7px">重新整理通行密鑰</button>
+ <div id="passkeyList" style="display:grid;gap:7px;margin-top:10px" aria-live="polite"></div>
+</div>
 <button type="button" id="logoutMember" class="icon-btn hidden">登出</button>
 <button type="button" id="logoutAllMember" class="icon-btn hidden">登出所有裝置</button>
 <button type="button" id="deleteMember" class="icon-btn hidden" style="color:var(--red)">永久刪除會員帳號</button>
@@ -282,13 +290,112 @@ async function loadWebMember(){
 }
 function setMemberButtons(member){
  for(const id of ['loginGoogle','loginApple'])$(id).classList.toggle('hidden',Boolean(member));
+ $('loginPasskey').classList.toggle('hidden',Boolean(member)||!webPasskeysSupported());
  const show=Boolean(member);
+ $('passkeyPanel').classList.toggle('hidden',!show||!webPasskeysSupported()||member?.consent?.required||member?.status!=='active');
  for(const id of ['editMember','linkGoogle','linkApple','logoutMember','logoutAllMember','deleteMember'])$(id).classList.toggle('hidden',!show||member?.status==='pending_deletion'||member?.consent?.required);
  $('consent').classList.toggle('hidden',!member?.consent?.required);
  // The current central API permanently deletes immediately; no undo period.
  $('accountUser').textContent=member?(member.profile?.display_name||'繁星會員')+' · '+member.user_id:'未登入（倒數仍可使用）';
 }
 
+
+/* Passkey: use Starry ID's RP id, never a Clock private credential.
+   Related Origin Requests on id.starry.phd permits registered Clock Web origins.
+   Do not use localStorage or the Clock Battery API for credentials. */
+function webPasskeysSupported(){
+ return Boolean(window.isSecureContext&&window.PublicKeyCredential&&navigator.credentials&&
+   typeof navigator.credentials.get==='function'&&typeof navigator.credentials.create==='function');
+}
+function fromBase64url(value){
+ if(typeof value!=='string'||!/^[A-Za-z0-9_-]+$/.test(value))throw Error('通行密鑰資料不正確');
+ const x=value.replace(/-/g,'+').replace(/_/g,'/');
+ const raw=atob(x+'='.repeat((4-x.length%4)%4));
+ return Uint8Array.from(raw,ch=>ch.charCodeAt(0));
+}
+function toBase64url(value){
+ const bytes=new Uint8Array(value);
+ let raw='';for(const b of bytes)raw+=String.fromCharCode(b);
+ return btoa(raw).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function publicKeyOptions(json,mode){
+ if(!json||typeof json!=='object'||typeof json.challenge!=='string'||json.rpId&&json.rpId!=='id.starry.phd')throw Error('中央 Passkey 網域設定不符');
+ const result={...json,challenge:fromBase64url(json.challenge)};
+ const field=mode==='get'?'allowCredentials':'excludeCredentials';
+ result[field]=(json[field]||[]).map(cred=>({...cred,id:fromBase64url(cred.id)}));
+ if(mode==='create'){
+  if(json.rp?.id!=='id.starry.phd'||!json.user?.id)throw Error('中央 Passkey 網域設定不符');
+  result.user={...json.user,id:fromBase64url(json.user.id)};
+ }
+ return result;
+}
+function friendlyPasskeyError(e){
+ const x=e?.name||e?.error||'';
+ if(x==='NotAllowedError'||x==='AbortError'||x==='UserCancelled')return '已取消通行密鑰操作';
+ if(x==='NotSupportedError'||x==='SecurityError')return '此瀏覽器未支援跨網域通行密鑰，請改用 Google／Apple 或更新瀏覽器';
+ if(e?.code==='REAUTH_REQUIRED')return '安全限制：請重新使用 Google／Apple 登入，再新增通行密鑰';
+ return String(e?.message||'通行密鑰驗證失敗').slice(0,180);
+}
+async function loginWebPasskey(){
+ if(!webPasskeysSupported())throw Error('此瀏覽器不支援通行密鑰，請改用 Google／Apple');
+ const appConfig=await starryReq('/v1/apps/clock/config');
+ if(appConfig.status!=='active')throw Error('中央會員暫停登入 Clock');
+ try{
+  const opts=await starryReq('/v1/auth/passkey/options',{method:'POST',body:qs({app_id:APPID})});
+  const credential=await navigator.credentials.get({publicKey:publicKeyOptions(opts.publicKey,'get')});
+  if(!credential)throw Error('未選取通行密鑰');
+  const result=await starryReq('/v1/auth/passkey',{method:'POST',body:qs({
+   app_id:APPID,id:credential.id,
+   clientDataJSON:toBase64url(credential.response.clientDataJSON),
+   authenticatorData:toBase64url(credential.response.authenticatorData),
+   signature:toBase64url(credential.response.signature)
+  })});
+  // Credentials are verified only on Starry ID; store the rotating Refresh Token
+  // under exactly the same session key as the existing Google/Apple login.
+  sessionStorage.setItem(refreshingKey,result.refresh_token);
+  webAccess=result.access_token;
+  await loadMemberWebUI();
+ }catch(e){throw Error(friendlyPasskeyError(e))}
+}
+async function createWebPasskey(){
+ if(!webPasskeysSupported())throw Error('瀏覽器不支援 Passkey');
+ if(!webMember||webMember.consent?.required)throw Error('請先登入並同意條款');
+ try{
+  const options=await webAuthorized(token=>starryReq('/v1/me/passkeys/options',{method:'POST'},token));
+  const credential=await navigator.credentials.create({publicKey:publicKeyOptions(options.publicKey,'create')});
+  if(!credential)throw Error('未建立通行密鑰');
+  await webAuthorized(token=>starryReq('/v1/me/passkeys',{
+   method:'POST',body:qs({
+    clientDataJSON:toBase64url(credential.response.clientDataJSON),
+    attestationObject:toBase64url(credential.response.attestationObject)
+   })
+  },token));
+  await reloadWebPasskeys();
+ }catch(e){throw Error(friendlyPasskeyError(e))}
+}
+async function reloadWebPasskeys(){
+ if(!webMember||webMember.consent?.required||!webPasskeysSupported())return;
+ const root=$('passkeyList');root.textContent='正在讀取…';
+ try{
+  const data=await webAuthorized(token=>starryReq('/v1/me/passkeys',{},token));
+  root.replaceChildren();
+  if(!data.passkeys?.length){root.textContent='目前尚未新增通行密鑰';return}
+  for(const p of data.passkeys){
+   const row=document.createElement('div');row.style.cssText='display:flex;gap:8px;align-items:center;justify-content:space-between';
+   const label=document.createElement('span');label.textContent=p.name||'通行密鑰';
+   const button=document.createElement('button');button.type='button';button.className='icon-btn';button.textContent='移除';
+   button.addEventListener('click',async()=>{
+    if(!confirm('確定移除此通行密鑰？若這是唯一登入方式，請先確保 Google／Apple 可以登入。'))return;
+    button.disabled=true;
+    try{
+     await webAuthorized(token=>starryReq('/v1/me/passkeys/'+encodeURIComponent(p.id),{method:'DELETE'},token));
+     await reloadWebPasskeys();
+    }catch(e){alertAccount(friendlyPasskeyError(e));button.disabled=false}
+   });
+   row.append(label,button);root.append(row);
+  }
+ }catch(e){root.textContent=friendlyPasskeyError(e)}
+}
 async function clockReq(path,method='GET',data,token){
  const headers={Accept:'application/json',...(data!==undefined?{'Content-Type':'application/json'}:{}),...(token?{Authorization:'Bearer '+token}:{})};
  let response;
@@ -401,6 +508,7 @@ async function loadMemberWebUI(){
    $('batteryBalance').textContent='額度暫時無法讀取，不影響免費倒數計時。';
  }
  await syncCloudPresets();
+ await reloadWebPasskeys();
  await loadOwnerPrices();
 }
 function logoutWebLocal(){webAccess=null;webMember=null;cloudPresetIds=new Set();freePresetSlots=[];freeSyncReady=false;sessionStorage.removeItem(refreshingKey);sessionStorage.removeItem(pendingKey);setMemberButtons(null);$('batteryPanel').classList.add('hidden');$('ownerPricing').classList.add('hidden');$('batteryBalance').textContent='';}
@@ -450,6 +558,9 @@ async function completeWebRelay(){
 }
 function webAction(id,fn){$(id).addEventListener('click',()=>{Promise.resolve(fn()).catch(e=>alertAccount(e.message))})}
 webAction('loginGoogle',()=>relayWeb('google'));webAction('loginApple',()=>relayWeb('apple'));
+webAction('loginPasskey',loginWebPasskey);
+webAction('addPasskey',createWebPasskey);
+webAction('reloadPasskeys',reloadWebPasskeys);
 webAction('linkGoogle',()=>relayWeb('google','link'));webAction('linkApple',()=>relayWeb('apple','link'));
 webAction('logoutMember',async()=>{
  try{await webAuthorized(t=>starryReq('/v1/auth/logout',{method:'POST'},t))}finally{logoutWebLocal()}
@@ -488,7 +599,7 @@ webAction('contactSupport',()=>{
 });
 void completeWebRelay().then(()=>loadMemberWebUI()).catch(()=>{});
 
-read();reset();renderPresets();summary();void showPublicPricing();void checkAppGate();setInterval(tick,100);drawMode();if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
+read();reset();renderPresets();setMemberButtons(null);summary();void showPublicPricing();void checkAppGate();setInterval(tick,100);drawMode();if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 })();
 </script>
 </body></html>
