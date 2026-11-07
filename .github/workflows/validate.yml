@@ -41,6 +41,13 @@ jobs:
       - run: pnpm codegen:starry
       - run: node --test packages/clock-core/test/clock.test.mjs
       - run: python3 tools/build_worker.py
+      - name: Retain verified Web deployment bundle for staged rollout
+        uses: actions/upload-artifact@v4
+        with:
+          name: clock-web-worker-${{ github.sha }}
+          path: web-preview/cloudflare-worker.mjs
+          if-no-files-found: error
+          retention-days: 3
       - run: node --test test/worker-smoke.mjs
       - run: node --test test/starry-relay.test.mjs
       - run: node --test test/clock-api.test.mjs
