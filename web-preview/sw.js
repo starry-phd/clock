@@ -1,5 +1,5 @@
 // Network-first HTML ensures member login updates are not stuck in an old PWA cache.
-const CACHE='clock-web-v1-12-official-starry-sdk';
+const CACHE='clock-web-v1-14-web-sso';
 self.addEventListener('install', event=>event.waitUntil(
   caches.open(CACHE).then(cache=>cache.addAll(['/','/manifest.webmanifest','/starry-client.js'])).then(()=>self.skipWaiting())
 ));
