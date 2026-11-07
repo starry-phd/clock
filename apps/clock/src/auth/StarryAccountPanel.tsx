@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
-import {readBattery, setConsent, updateProfile, deleteAccount, StarryApiError} from '@clock/auth-contract';
+import {updateProfile, StarryApiError} from '@clock/auth-contract';
 import appConfig from '../../app.json';
 import type {RelayProvider, StarryMe} from '@clock/auth-contract';
 import {loadMember, startStarryRelay, signOut, signOutEverywhere, clearSession, withAccess, officialStarryClient, onStarryAuthChange} from './session';
@@ -41,7 +41,10 @@ export function StarryAccountPanel(){
     catch{setPasskeys([]);}
    }else setPasskeys([]);
    try{
-    const value=await withAccess(token=>readBattery(token));
+    const value=await officialStarryClient().request<{
+     balance:{period:string;allowance:number;used:number;reserved:number;remaining:number};
+     quantum?:{balance:number;available:number}|null;
+    }>('GET','/v1/me/battery');
     const bal=value.balance;
     const quantum=value.quantum;
     setBattery(`本月 ${bal.period}｜額度 ${bal.allowance} 顆｜已用 ${bal.used} 顆｜預留 ${bal.reserved} 顆｜剩餘 ${bal.remaining} 顆`
@@ -79,7 +82,7 @@ export function StarryAccountPanel(){
   if(!me)return;
   const ok=await confirmAction('同意條款','請先閱讀 Starry ID 的服務條款與隱私權政策。確認同意目前版本？');
   if(!ok)return;
-  await action(()=>withAccess(t=>setConsent(t,me.consent.terms_version,me.consent.privacy_version)));
+  await action(()=>officialStarryClient().acceptConsent());
  }
  async function saveName(){
   if(!me)return;
@@ -91,7 +94,7 @@ export function StarryAccountPanel(){
   if(deletePhrase.trim()!=='DELETE'){setError('請先輸入 DELETE 才能進行永久刪除');return;}
   const ok=await confirmAction('永久刪除 Starry 帳號','確認後將立即永久刪除會員帳號，無法撤回，且不會自動取消 App Store／Google Play 訂閱。');
   if(!ok)return;
-  await action(async()=>{await withAccess(t=>deleteAccount(t));await clearSession();setMe(null);setDeletePhrase('');});
+  await action(async()=>{await officialStarryClient().deleteAccount();await clearSession();setMe(null);setDeletePhrase('');});
  }
  function contactSupport(){
   const build=Platform.OS==='ios'?appConfig.expo.ios.buildNumber:Platform.OS==='android'?appConfig.expo.android.versionCode:'Web';
