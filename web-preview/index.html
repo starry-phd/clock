@@ -25,7 +25,7 @@ body.fullscreen #app{max-width:none}body.theater header,body.theater .mode-toggl
 <p id="centralNotice" class="note hidden" role="status" style="border:1px solid var(--line);padding:10px;border-radius:10px;color:var(--alert)"></p>
 <div class="mode-toggle" role="tablist" aria-label="顯示模式"><button id="timerTab" class="tab active" role="tab" aria-selected="true">倒數計時</button><button id="clockTab" class="tab" role="tab" aria-selected="false">時鐘</button></div>
 <section class="hero" aria-live="off"><div class="purpose" id="purpose">休息時間</div><div id="digits" class="digits" role="timer" aria-label="剩餘時間">05:00</div><div class="unit" id="unit">分 : 秒</div><div class="track" id="track"><div id="fill" class="fill"></div></div></section>
-<div id="timerPanel"><div class="controls"><button id="start" class="large-btn primary">開始</button><button id="reset" class="large-btn">重設</button></div><div class="presets-head"><strong>快速切換用途</strong><button id="add" class="add">＋ 新增用途</button></div><p id="presetPriceInfo" class="note">計時器前 3 組免費；第 4 組起需先確認繁星電池消耗。</p><div id="presets" class="presets" aria-label="預設用途清單"></div></div>
+<div id="timerPanel"><div class="controls"><button id="start" class="large-btn primary">開始</button><button id="reset" class="large-btn">重設</button></div><div class="presets-head"><strong>快速切換用途</strong><button id="add" class="add">＋ 新增用途</button></div><p id="presetPriceInfo" class="note">計時器前 3 組免費；第 4 組起需先確認 🔋 普通電池消耗。</p><div id="presets" class="presets" aria-label="預設用途清單"></div></div>
 <p id="clockHint" class="hint hidden">超大時鐘 · 顯示時分秒</p>
 <div class="footer"><span id="summary">結束前 10 秒提醒 · 響鈴開啟 · 可離線使用</span><div id="notice" style="font-size:11px;margin-top:4px">開啟畫面時可準時提醒；鎖屏、背景分頁或系統省電可能延遲鈴聲</div></div>
 </main>
@@ -37,8 +37,8 @@ body.fullscreen #app{max-width:none}body.theater header,body.theater .mode-toggl
 <div class="dialog-backdrop hidden" id="overlay" role="presentation"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
 <h2 id="dialogTitle">新增用途</h2><div id="presetForm"><label class="label" for="presetName">用途名稱</label><input class="textinput" id="presetName" maxlength="24" placeholder="例如：休息時間"><span class="label">倒數時間</span><div class="time-fields"><input id="minutes" class="textinput" type="number" min="0" max="1439" inputmode="numeric" value="5" aria-label="分鐘"><span>分</span><input id="seconds" class="textinput" type="number" min="0" max="59" inputmode="numeric" value="0" aria-label="秒"><span>秒</span></div><p class="note">每一種用途可設定固定倒數長度，選取後即可開始。</p>
 <div id="freeReplacePanel" class="hidden" style="margin-top:14px;border:1px solid var(--mint);border-radius:12px;padding:12px">
-<strong>電池扣量暫時不可用？可改為免費取代</strong>
-<p class="note">不會新增第 4 組、不扣除任何電池；選擇要取代的既有用途後即可儲存。原用途名稱與時間會被取代。</p>
+<strong>🔋 電池扣量暫時不可用？可改為免費取代</strong>
+<p class="note">不會新增第 4 組、不扣除任何 🔋 普通電池；選擇要取代的既有用途後即可儲存。原用途名稱與時間會被取代。</p>
 <label class="label" for="freeReplaceTarget">選擇要取代的計時器</label>
 <select id="freeReplaceTarget" class="textinput" aria-label="選擇要取代的既有計時器"><option value="">請選擇一組用途</option></select>
 <button type="button" id="freeReplaceSave" class="large-btn" style="margin-top:10px;width:100%">免費取代並儲存</button>
@@ -138,8 +138,8 @@ try{
  if(!editor&&presets.length>=3&&(!freeSyncReady||freePresetSlots.length>=3)){
   const pricing=await clockReq('/v1/pricing');
   const item=pricing.features.find(x=>x.feature==='clock.preset_create');
-  if(!item?.enabled||!item.available)throw Error('第 4 組的電池扣量暫未開放。請使用下方「免費取代並儲存」，選一組既有用途取代；不會扣電池。');
-  const proceed=confirm('新增此計時器將消耗 '+item.units+' 顆繁星電池。額度跨 Starry Apps 共用；只有新增成功才扣。確定新增嗎？');
+  if(!item?.enabled||!item.available)throw Error('第 4 組的 🔋 普通電池扣量暫未開放。請使用下方「免費取代並儲存」，選一組既有用途取代；不會扣電池。');
+  const proceed=confirm('新增此計時器將消耗 🔋 '+item.units+' 顆普通電池。額度跨 Starry Apps 共用；只有新增成功才扣。確定新增嗎？');
   if(!proceed)return;
   const requestId=pendingAdd?.fingerprint===fingerprint?pendingAdd.requestId:crypto.randomUUID();
   pendingAdd={fingerprint,id:presetId,requestId};
@@ -174,7 +174,7 @@ async function replaceFree(){
  if(!name||name.length>24||m===null||sec===null||(m===0&&sec===0)){
   $('formError').textContent='名稱 1～24 字；時間需介於 00:01 與 1439:59。';return;
  }
- if(!confirm('確定以「'+name+'」取代「'+target.name+'」？這不會增加計時器數量，也不會消耗任何繁星電池。'))return;
+ if(!confirm('確定以「'+name+'」取代「'+target.name+'」？這不會增加計時器數量，也不會消耗任何 🔋 普通電池。'))return;
  const updated={id:target.id,name,durationSeconds:m*60+sec};
  saveBusy=true;$('save').disabled=true;$('freeReplaceSave').disabled=true;$('formError').textContent='';
  try{
@@ -227,7 +227,7 @@ try{
   const result=await webAuthorized(token=>clockReq('/v1/presets/free/'+encodeURIComponent(editor.id),'DELETE',{version:free.version},token));
   freePresetSlots=result.presets;
  }else if(cloudPresetIds.has(editor.id)){
-  if(!confirm('刪除此雲端計時器？先前使用的繁星電池不會退還。'))return;
+  if(!confirm('刪除此雲端計時器？先前消耗的 🔋 普通電池不會退還。'))return;
   await webAuthorized(token=>clockReq('/v1/presets/'+encodeURIComponent(editor.id),'DELETE',undefined,token));
   cloudPresetIds.delete(editor.id);
  }
@@ -393,7 +393,7 @@ async function clockReq(path,method='GET',data,token){
  try{
   response=await fetch(CLOCK_BACKEND+path,{method,headers,body:data===undefined?undefined:JSON.stringify(data),credentials:'omit'});
  }catch{
-  throw Error('無法連線到 Clock 電池服務，請檢查網路連線後再試。免費計時不受影響。');
+  throw Error('🔋 無法連線到 Clock 電池服務，請檢查網路連線後再試。免費計時不受影響。');
  }
  const payload=await response.json().catch(()=>({}));
  if(!response.ok)throw Error(payload.error?.message||'Clock API HTTP '+response.status);
@@ -478,8 +478,8 @@ async function showPublicPricing(){
  try{
   const config=await clockReq('/v1/pricing');
   const item=config.features.find(x=>x.feature==='clock.preset_create');
-  $('presetPriceInfo').textContent='前 3 組免費；第 4 組起每新增 1 組'+(item?.available?'消耗 '+item.units+' 顆繁星電池。':'需電池（目前尚未開放）；可在新增視窗免費取代現有用途。');
- }catch{$('presetPriceInfo').textContent='前 3 組免費；電池服務暫時無法連線，新增第 4 組暫停。'}
+  $('presetPriceInfo').textContent='前 3 組免費；第 4 組起每新增 1 組'+(item?.available?'消耗 🔋 '+item.units+' 顆普通電池。':'需 🔋 普通電池（目前尚未開放）；可在新增視窗免費取代現有用途。');
+ }catch{$('presetPriceInfo').textContent='前 3 組免費；🔋 電池服務暫時無法連線，新增第 4 組暫停。'}
 }
 
 async function loadMemberWebUI(){
