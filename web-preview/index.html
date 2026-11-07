@@ -116,7 +116,7 @@ function openDialog(type){
    const option=document.createElement('option');option.value=p.id;option.textContent=p.name+'（'+fmt(p.durationSeconds)+'）';select.append(option);
   }
  }
- if(type==='settings'){$('lead').value=String(lead);checkMember()}
+ if(type==='settings'){$('lead').value=String(lead);checkMember();void refreshVisibleMember()}
  else{$('presetName').value=editor?.name||'';$('minutes').value=String(editor?Math.floor(editor.durationSeconds/60):5);$('seconds').value=String(editor?editor.durationSeconds%60:0)}
  setTimeout(()=>$(type==='settings'?'lead':'presetName').focus(),60);
 }
@@ -236,7 +236,7 @@ try{
  reset();persist();renderPresets();closeDialog();
 }catch(e){$('formError').textContent=e.message||'無法刪除';}
 finally{saveBusy=false}
-});$('overlay').addEventListener('click',e=>{if(e.target===$('overlay'))closeDialog()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDialog();if(e.code==='Space'&&!dialog&&mode==='timer'&&e.target===document.body){e.preventDefault();start()}});document.addEventListener('fullscreenchange',()=>document.body.classList.toggle('fullscreen',Boolean(document.fullscreenElement)));document.addEventListener('visibilitychange',()=>{tick();if(document.visibilityState==='visible'){keepAwake();void checkAppGate();}});
+});$('overlay').addEventListener('click',e=>{if(e.target===$('overlay'))closeDialog()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDialog();if(e.code==='Space'&&!dialog&&mode==='timer'&&e.target===document.body){e.preventDefault();start()}});document.addEventListener('fullscreenchange',()=>document.body.classList.toggle('fullscreen',Boolean(document.fullscreenElement)));document.addEventListener('visibilitychange',()=>{tick();if(document.visibilityState==='visible'){keepAwake();void checkAppGate();void refreshVisibleMember();}});
 
 /* Starry relay login: exactly https://clock.starry.phd/auth/done callback; fragment only. */
 const STAR='https://id.starry.phd',APPID='clock',REDIRECT='https://clock.starry.phd/auth/done';
@@ -298,6 +298,17 @@ async function loadWebMember(){
   return webMember=await requireWebSdk().me();
  }catch{return webMember=null}
 }
+// Keep already-loaded avatar bytes until the central object's *path* changes,
+// never key the avatar by user_id or member_no, and never store signed URLs.
+let displayedAvatarPath=null;
+function centralAvatar(raw){
+ if(typeof raw!=='string'||!raw)return null;
+ try{
+  const url=new URL(raw,STAR);
+  if(url.origin!==STAR||!url.pathname.startsWith('/v1/avatars/'))return null;
+  return {uri:url.href,cacheKey:url.pathname};
+ }catch{return null}
+}
 function setMemberButtons(member){
  for(const id of ['loginGoogle','loginApple'])$(id).classList.toggle('hidden',Boolean(member));
  $('loginPasskey').classList.toggle('hidden',Boolean(member)||!webPasskeysSupported());
@@ -308,29 +319,50 @@ function setMemberButtons(member){
  // The current central API permanently deletes immediately; no undo period.
  // Member number is a mutable public handle, never a DB key or localStorage key.
  const no=typeof member?.member_no==='string'&&/^[A-Z]{2}\d{7,10}$/.test(member.member_no)?member.member_no:null;
- $('accountUser').textContent=member?(member.profile?.display_name||'繁星會員'):'未登入（倒數仍可使用）';
+ $('accountUser').textContent=member?(member.profile?.shown_name??member.profile?.initials??'?'):'未登入（倒數仍可使用）';
  $('memberNumber').textContent=member?'會員編號：'+(no||'尚未取得'):'';
  $('memberLinks').classList.toggle('hidden',!no||member?.consent?.required);
  if(no){
   $('publicProfile').href=STAR+'/'+encodeURIComponent(no);
  }
  const avatar=$('memberAvatar');
- avatar.replaceChildren();
- if(member){
-  // Signed URLs expire after an hour: use the freshly fetched GET /v1/me URL.
-  // Never persist the avatar image URL or derive initials on the client.
-  const fallback=()=>{avatar.replaceChildren();const text=document.createElement('span');text.textContent=member.profile?.initials||'?';text.style.cssText='font-size:22px;font-weight:800';avatar.append(text)};
-  const url=member.profile?.avatar_url;
-  if(typeof url==='string'&&url.startsWith('https://')){
-   const img=document.createElement('img');img.alt='Starry ID 會員頭像';img.src=url;
+ const image=member?centralAvatar(member.profile?.avatar_url):null;
+ const initials=member?.profile?.initials??'?';
+ const nextKey=image?image.cacheKey:'initials:'+initials;
+ if(!member||displayedAvatarPath!==nextKey){
+  // One-hour signature may change on every GET /v1/me, but the unchanged
+  // object path means the picture itself has not changed: avoid re-download.
+  displayedAvatarPath=member?nextKey:null;
+  avatar.replaceChildren();
+  const fallback=()=>{
+   if(image)displayedAvatarPath=null; // retry on next foreground after transient failure
+   avatar.replaceChildren();
+   const text=document.createElement('span');text.textContent=initials;
+   text.style.cssText='font-size:22px;font-weight:800';avatar.append(text);
+  };
+  if(image){
+   const img=document.createElement('img');img.alt='Starry ID 會員頭像';
    img.referrerPolicy='no-referrer';img.style.cssText='width:100%;height:100%;object-fit:cover';
-   img.addEventListener('error',fallback,{once:true});avatar.append(img);
+   img.addEventListener('error',fallback,{once:true});
+   img.src=image.uri;avatar.append(img);
   }else fallback();
- }else{
-  const span=document.createElement('span');span.textContent='?';avatar.append(span);
+ }
  }
 }
 
+
+async function refreshVisibleMember(){
+ // The signed URL and primary shown_name must be re-read on foreground
+ // and when the account settings open; no background polling or fake multiplier.
+ if(!webMember)return;
+ try{
+  const member=await requireWebSdk().me();
+  webMember=member;
+  setMemberButtons(member);
+ }catch{
+  // Keep the offline countdown usable during a central network outage.
+ }
+}
 
 /* Passkey: use Starry ID's RP id, never a Clock private credential.
    Related Origin Requests on id.starry.phd permits registered Clock Web origins.
@@ -594,7 +626,7 @@ webAction('consent',async()=>{
 });
 webAction('editMember',async()=>{
  if(!webMember)return;
- const name=prompt('請輸入顯示名稱（1～50 字）',webMember.profile.display_name||'');
+ const name=prompt('編輯會員姓名（主要顯示名稱請至 Starry ID 帳號中心設定，1～50 字）',webMember.profile.display_name||'');
  if(name===null)return;
  const cleaned=name.trim();
  if(cleaned.length<1||cleaned.length>50)throw new Error('顯示名稱需 1～50 字');
