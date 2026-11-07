@@ -26,8 +26,13 @@ const legacyAccess='clock:starry:access:v1';
 const IOS_SHARED_SERVICE='starry-sso-v1';
 const IOS_SSO_MARKER='clock:starry:ios-sso-seen:v1';
 
-// Every iOS Starry App must use the same signed entitlement's FIRST group
-// $(AppIdentifierPrefix)phd.starry.sso and this service; no Team ID in code.
+// Every iOS Starry App must use the SAME FIRST entitlement group:
+// $(AppIdentifierPrefix)phd.starry.shared (as required by Starry ID v14).
+// Apple's Keychain uses the first entitlement group by default; Expo SecureStore
+// supports accessGroup, but supplying the unexpanded build-time variable at
+// runtime would be incorrect. Keep this single shared group first, and use the
+// same explicit keychainService in all participating Starry iOS apps.
+// No Apple Team ID is hard-coded in the App.
 // Android SecureStore is app-private and MUST NOT be offered as sharedStorage.
 // Android requires a signature-permission ContentProvider or shared Account
 // installed in every participating Starry App (see docs/CLOCK-AI-HANDOFF.md).
