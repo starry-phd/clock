@@ -23,6 +23,19 @@ import {nativePasskeyAdapter} from './nativePasskeyAdapter';
 const REFRESH='clock:starry:refresh:v1';
 const LINK_PENDING='clock:starry:link:v2';
 const legacyAccess='clock:starry:access:v1';
+const IOS_SHARED_SERVICE='starry-sso-v1';
+const IOS_SSO_MARKER='clock:starry:ios-sso-seen:v1';
+
+// Every iOS Starry App must use the same signed entitlement's FIRST group
+// $(AppIdentifierPrefix)phd.starry.sso and this service; no Team ID in code.
+// Android SecureStore is app-private and MUST NOT be offered as sharedStorage.
+// Android requires a signature-permission ContentProvider or shared Account
+// installed in every participating Starry App (see docs/CLOCK-AI-HANDOFF.md).
+const iosSharedStorage:StarryStorage={
+ get:key=>SecureStore.getItemAsync(key,{keychainService:IOS_SHARED_SERVICE}),
+ set:(key,value)=>SecureStore.setItemAsync(key,value,{keychainService:IOS_SHARED_SERVICE}),
+ remove:key=>SecureStore.deleteItemAsync(key,{keychainService:IOS_SHARED_SERVICE})
+};
 
 function compatKey(key:string):string{
   if(key==='starry.refresh.clock')return REFRESH;
@@ -52,6 +65,7 @@ const starry=new StarryClient({
  appId:'clock',
  storage,
  passkey:Platform.OS==='web'?undefined:nativePasskeyAdapter,
+ sharedStorage:Platform.OS==='ios'?iosSharedStorage:undefined,
  sha256Hex:text=>Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256,text),
  randomState:()=>Array.from(Crypto.getRandomBytes(32)).map(n=>n.toString(16).padStart(2,'0')).join(''),
  openAuthSession:async(url,returnUrl)=>{
@@ -62,9 +76,36 @@ const starry=new StarryClient({
 
 export function officialStarryClient(){return starry;}
 
+/** Subscribe for cross-Starry-App sign-in/account switches; never poll Battery. */
+export function onStarryAuthChange(fn:(event:'signed-in'|'signed-out')=>void){
+ return starry.onAuthChange(fn);
+}
+
+/**
+ * App start / foreground: central SSO status is authoritative.
+ * A missing SSO token after one was observed means another Starry App signed out.
+ * Do not let the official SDK adopt an old cached Access Token in that case.
+ */
+export async function syncStarryDeviceSignIn():Promise<boolean>{
+ if(Platform.OS!=='ios')return starry.syncDeviceSignIn();
+ const previous=await SecureStore.getItemAsync(IOS_SSO_MARKER);
+ const before=await iosSharedStorage.get('starry.sso');
+ if(previous==='1'&&!before){
+   await starry.signOut();
+   await SecureStore.deleteItemAsync(IOS_SSO_MARKER);
+   return false;
+ }
+ const active=await starry.syncDeviceSignIn();
+ const current=await iosSharedStorage.get('starry.sso');
+ if(current)await SecureStore.setItemAsync(IOS_SSO_MARKER,'1');
+ else await SecureStore.deleteItemAsync(IOS_SSO_MARKER);
+ return active;
+}
+
 export async function clearSession():Promise<void>{
   // SDK signOut clears local tokens even if the central endpoint fails.
   await starry.signOut();
+  if(Platform.OS==='ios')await SecureStore.deleteItemAsync(IOS_SSO_MARKER).catch(()=>{});
   if(Platform.OS==='web'){
     browserStorage().removeItem(LINK_PENDING);
   }else{
@@ -96,7 +137,7 @@ export async function loadMember():Promise<StarryMe|null>{
       // memory only; remove the obsolete disk copy on the first account check.
       await SecureStore.deleteItemAsync(legacyAccess).catch(()=>{});
     }
-    if(!(await starry.restore()))return null;
+    if(!(await syncStarryDeviceSignIn()))return null;
     return (await starry.me()) as unknown as StarryMe;
   }catch{return null;}
 }
@@ -162,6 +203,9 @@ export async function signOut():Promise<void>{
 export async function signOutEverywhere():Promise<void>{
  try{await starry.signOutEverywhere();}
  finally{
-   if(Platform.OS!=='web')await SecureStore.deleteItemAsync(legacyAccess).catch(()=>{});
+   if(Platform.OS!=='web'){
+     await SecureStore.deleteItemAsync(legacyAccess).catch(()=>{});
+     if(Platform.OS==='ios')await SecureStore.deleteItemAsync(IOS_SSO_MARKER).catch(()=>{});
+   }
  }
 }
