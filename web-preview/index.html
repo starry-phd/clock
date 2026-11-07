@@ -608,6 +608,18 @@ webAction('deleteMember',async()=>{
  await requireWebSdk().deleteAccount();
  logoutWebLocal();
 });
+$('publicProfile').addEventListener('click',event=>{
+ event.preventDefault();
+ void (async()=>{
+  try{
+   const member=await requireWebSdk().me(); // current member_no may have changed
+   setMemberButtons(member);
+   const no=typeof member?.member_no==='string'&&/^[A-Z]{2}\d{7,10}$/.test(member.member_no)?member.member_no:null;
+   if(!no)throw Error('會員編號尚未取得，請重新整理會員資料');
+   window.open(STAR+'/'+encodeURIComponent(no),'_blank','noopener,noreferrer');
+  }catch(e){alertAccount(e.message)}
+ })();
+});
 webAction('shareInvite',async()=>{
  // Refresh the member number at share time; it may change in Starry ID.
  const member=await requireWebSdk().me();
