@@ -3,7 +3,8 @@ import {Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextI
 import {readAppConfig, readBattery, setConsent, updateProfile, deleteAccount, StarryApiError} from '@clock/auth-contract';
 import appConfig from '../../app.json';
 import type {RelayProvider, StarryMe} from '@clock/auth-contract';
-import {loadMember, startStarryRelay, signOut, signOutEverywhere, clearSession, withAccess} from './session';
+import {loadMember, startStarryRelay, signOut, signOutEverywhere, clearSession, withAccess, officialStarryClient} from './session';
+import {StarryError} from './starry-client';
 import {OwnerPricingPanel} from './OwnerPricingPanel';
 
 const api='https://id.starry.phd';
@@ -21,6 +22,7 @@ export function StarryAccountPanel(){
  const [busy,setBusy]=useState(false);
  const [displayName,setDisplayName]=useState('');
  const [battery,setBattery]=useState('');
+ const [passkeys,setPasskeys]=useState<{id:string;name:string;created_at:number;last_used_at:number|null}[]>([]);
  const [error,setError]=useState('');
  const refresh=useCallback(async()=>{
   const config=await readAppConfig();
@@ -29,6 +31,10 @@ export function StarryAccountPanel(){
   const member=await loadMember();
   setMe(member);setDisplayName(member?.profile.display_name??'');
   if(member){
+   if(!member.consent.required){
+    try{setPasskeys(await officialStarryClient().listPasskeys());}
+    catch{setPasskeys([]);}
+   }else setPasskeys([]);
    try{
     const value=await withAccess(token=>readBattery(token));
     const bal=value.balance;
@@ -37,7 +43,7 @@ export function StarryAccountPanel(){
       +(quantum?`\n此 App 量子電池：餘額 ${quantum.balance} 顆｜可用 ${quantum.available} 顆`:''));
     // Free allowance is shared; Quantum is restricted to this App. This is read-only.
    }catch{setBattery('額度暫時無法讀取');}
-  }else setBattery('');
+  }else {setBattery('');setPasskeys([]);}
  },[]);
  useEffect(()=>{void refresh().catch(()=>setStatus('中央會員暫時無法連線'));},[refresh]);
  async function action(task:()=>Promise<void>){
@@ -45,6 +51,7 @@ export function StarryAccountPanel(){
   setBusy(true);setError('');
   try{await task();await refresh();}
   catch(e){
+   if(e instanceof StarryError&&e.cancelled)return; // system sheet dismissed intentionally
    const err=e as Error;
    setError(e instanceof StarryApiError
     ? (e.code==='IDENTITY_IN_USE'?'此登入方式已綁定其他帳號。為避免誤合併，請到 Starry ID 帳號中心確認。':err.message)
@@ -52,6 +59,16 @@ export function StarryAccountPanel(){
   }finally{setBusy(false);}
  }
  function login(p:RelayProvider){void action(async()=>{await startStarryRelay(p);});}
+ function loginPasskey(){void action(async()=>{await officialStarryClient().signInWithPasskey();});}
+ function createPasskey(){void action(async()=>{
+  await officialStarryClient().registerPasskey();
+ });}
+ function removePasskey(id:string){
+  void (async()=>{
+   if(!await confirmAction('移除通行密鑰','確定移除這組 Passkey？請先確保另一種登入方式仍可使用。'))return;
+   await action(()=>officialStarryClient().removePasskey(id));
+  })();
+ }
  async function agree(){
   if(!me)return;
   const ok=await confirmAction('同意條款','請先閱讀 Starry ID 的服務條款與隱私權政策。確認同意目前版本？');
@@ -83,6 +100,7 @@ export function StarryAccountPanel(){
     <Text style={s.info}>不需登入也能使用倒數計時。登入只由 Starry ID 中繼辦理；不會將 Apple、Google 密碼傳給 Clock。</Text>
     <Btn label="透過 Google 登入" onPress={()=>login('google')}/>
     <Btn label="透過 Apple 登入" onPress={()=>login('apple')}/>
+    <Btn label="使用 Passkey 通行密鑰登入" onPress={loginPasskey}/>
     <Btn label="重新檢查登入狀態" onPress={()=>{void action(async()=>{});}}/>
    </View>:<View style={s.block}>
     <Text style={s.name}>{me.profile.display_name||'繁星會員'}</Text>
@@ -105,6 +123,17 @@ export function StarryAccountPanel(){
         <Text style={s.info}>其他登入方式與頭像可從 Starry ID 帳號中心管理，不會在 Clock 建立獨立會員資料。</Text>
         <Btn label="綁定 Apple 登入方式" onPress={()=>{void action(async()=>{await startStarryRelay('apple','link');});}}/>
         <Btn label="綁定 Google 登入方式" onPress={()=>{void action(async()=>{await startStarryRelay('google','link');});}}/>
+        <View style={s.passkeyPanel}>
+          <Text style={s.name}>Passkey 通行密鑰</Text>
+          <Text style={s.info}>透過裝置指紋、Face ID 或螢幕鎖定登入 Starry ID。需要已安裝原生版本及正確的網域關聯。</Text>
+          <Btn label="新增通行密鑰" onPress={createPasskey}/>
+          <Btn label="重新整理通行密鑰" onPress={()=>{void action(async()=>{});}}/>
+          {passkeys.length===0?<Text style={s.info}>尚未註冊任何通行密鑰</Text>:
+           passkeys.map(p=><View key={p.id} style={s.passkeyRow}>
+            <Text style={[s.info,{flex:1}]} numberOfLines={2}>{p.name||'通行密鑰'}</Text>
+            <Btn label="移除" onPress={()=>removePasskey(p.id)} danger/>
+           </View>)}
+        </View>
         <Text style={s.info}>繁星電池艙 Starry Battery｜會員共用的消費用量月額度</Text>
         <Text style={s.info}>{battery||'尚未取得'}</Text>
         <OwnerPricingPanel userId={me.user_id}/>
@@ -127,4 +156,6 @@ const s=StyleSheet.create({
  btn:{padding:10,borderWidth:1,borderColor:C.line,backgroundColor:C.bg,borderRadius:9},
  btnText:{color:C.fg,textAlign:'center',fontWeight:'700'},input:{color:C.fg,borderColor:C.line,borderWidth:1,borderRadius:8,padding:10},
  warning:{padding:10,borderColor:'#997D3A',borderWidth:1,borderRadius:10,gap:7},warnText:{color:'#FFCD75'},
+ passkeyPanel:{borderWidth:1,borderColor:C.line,borderRadius:10,padding:12,gap:8},
+ passkeyRow:{flexDirection:'row',alignItems:'center',gap:10,justifyContent:'space-between'},
 });
