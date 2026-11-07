@@ -21,3 +21,10 @@
 - **範圍限定**：本次只部署 Web Worker。**沒有**部署 `clock-api-staging`／`clock-api` 新版、沒有更新正式 D1、沒有啟用 Battery 收費、沒有修改 Starry ID、沒有建立／送審 Expo Android/iOS。正式 API Worker 的 `BATTERY_CHARGES_ENABLED=false` 維持；新 Web 免費用途雲端同步遇到舊 API 不支援時回退本機模式（不扣量），完整跨裝置同步仍待後端驗收後部署。
 - **驗證範圍**：GitHub 完整 CI／Worker 模擬 HTTP 測試全綠，Cloudflare 上傳成功、正式 Worker deployment 及 DNS Domain 綁定可查。外部網頁抓取工具無法讀取 `clock.starry.phd` 或 staging 的 HTTP 回應，**因此未完成實際瀏覽器登入／Web SSO／計時音效的端到端驗收**。請人工用瀏覽器實測；若不正常立即回滾。
 - 本次版本的正式 GitHub `main` **尚未合併**，PR #15 仍為 Draft，內含待驗收的 Clock API/Expo 更新；不要因為 Web 已部署就自動合併尚未驗收的後端／原生功能。
+
+### 正式網站 HTTP 驗收補充（2026-11-08）
+
+- GitHub Actions [#42390191572](https://github.com/starry-phd/clock/actions/runs/42390191572) **全部三項成功**。已將過時的 `test/staging-http-smoke.mjs` 改為 v14 Web 版本的真實 HTTP 煙霧測試，不依賴已移除的舊 `starry_relay`／`source_sha` 健康欄位。
+- CI 在實際公開網路呼叫 staging `https://clock-staging.starry-phd.workers.dev` 及正式 `https://clock.starry.phd`：兩站 HTTP 200，`/api/health`、HTML、官方 `/starry-client.js`、Passkey/SSO 按鈕與 SDK 方法、CSP、`/sw.js`、`/auth/done`、同源 `/api/clock/v1/pricing` 均通過；匿名取得會員用途回 401；正式 Battery `available=false`；中央登記 active。
+- 日誌標記：`CLOCK_STAGING_V14_HTTP_PASS` 與 `CLOCK_PRODUCTION_V14_HTTP_PASS`；**正式與 staging 的 HTML、CSP、Service Worker、官方 SDK 全部逐字一致**。
+- 以上是真實網站 HTTP 驗收，**仍未進行會員的 Google/Apple/Passkey 實際登入或跨網站 SSO 的真人端到端驗收**。正式 API Worker 尚未更新，前三組免費雲端歸戶依舊暫回退本機。
