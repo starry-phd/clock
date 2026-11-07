@@ -234,21 +234,19 @@ finally{saveBusy=false}
 /* Starry relay login: exactly https://clock.starry.phd/auth/done callback; fragment only. */
 const STAR='https://id.starry.phd',APPID='clock',REDIRECT='https://clock.starry.phd/auth/done';
 async function checkAppGate(){
- // Current central public config is authoritative; network failure does not stop offline timing.
+ // Central official SDK checks min_version, killed, paused and visible notices.
+ // No polling; offline-only countdown always remains usable.
  try{
-  const response=await fetch(STAR+'/v1/apps/clock/config',{cache:'no-store'});
-  if(!response.ok)return;
-  const config=await response.json(),t=Date.now();
-  const parts=v=>String(v||'0.0.0').split(/[-+]/)[0].split('.').map(x=>Number(x)||0);
-  const cmp=(a,b)=>{const x=parts(a),y=parts(b);for(let i=0;i<3;i++)if((x[i]||0)!==(y[i]||0))return(x[i]||0)-(y[i]||0);return 0};
-  const tooOld=cmp('1.1.1',config.min_version)<0;
-  const blocked=config.status==='paused'||config.status==='killed'||tooOld;
+  const gate=await requireWebSdk().checkApp('1.1.1');
+  if(gate.state==='unreachable')return;
+  const blocked=gate.state!=='ok';
   $('appGate').classList.toggle('hidden',!blocked);
-  $('appGateMessage').textContent=tooOld?'Clock 版本過舊，請更新 App。':config.status==='paused'?'目前正在維護，請稍後再試。':'Clock 已停用，請聯絡客服。';
-  const notices=Array.isArray(config.notices)?config.notices.filter(n=>n&&n.starts_at<=t&&n.ends_at>=t&&typeof n.message==='string').map(n=>n.message):[];
+  $('appGateMessage').textContent=gate.state==='update_required'?'Clock 版本過舊，請更新 App。':
+   gate.state==='maintenance'?'目前正在維護，請稍後再試。':'Clock 已停用，請聯絡客服。';
+  const notices=gate.notices.map(n=>n.message); // plain text; never innerHTML
   $('centralNotice').textContent=notices.join('　');
   $('centralNotice').classList.toggle('hidden',!notices.length||blocked);
- }catch{} // No polling flood; paid API remains fail-closed independently.
+ }catch{} // Central outage: keep timer functioning; authenticated calls fail closed.
 }
 $('appGateRetry').addEventListener('click',()=>{void checkAppGate()});
 const CLOCK_BACKEND='/api/clock';
@@ -461,7 +459,7 @@ async function loadMemberWebUI(){
  if(!member||member.status==='pending_deletion'||member.consent?.required)return;
  $('batteryBalance').textContent='查詢中…';
  try {
-   const result=await webAuthorized(t=>starryReq('/v1/me/battery',{},t));
+   const result=await requireWebSdk().request('GET','/v1/me/battery');
    const bal=result.balance;
    const quantum=result.quantum;
    $('batteryBalance').textContent='本月 '+bal.period+'｜額度 '+bal.allowance+' 顆｜已用 '+bal.used+' 顆｜預留 '+bal.reserved+' 顆｜剩餘 '+bal.remaining+' 顆'
