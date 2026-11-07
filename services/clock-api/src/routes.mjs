@@ -3,6 +3,7 @@
  * Starry Battery is the member's shared monthly CONSUMPTION quota, AI + non-AI.
  * All usage is reserved/committed server-side; no sensitive keys in clients.
  */
+import {Starry, StarryError} from './starry-sdk.ts';
 const ORIGINS=new Set(['https://clock.starry.phd','https://clock-staging.starry-phd.workers.dev']);
 const MAX_EXTRAS=47;
 const TASK='clock.preset_create';
@@ -34,12 +35,10 @@ function owner(env,userId){
 // must not retain pricing privileges after Starry ID revokes an Owner.
 async function requireCentralOwner(bearer,origin){
  try{
-  const response=await fetch('https://id.starry.phd/v1/me',{
-   headers:{accept:'application/json',authorization:bearer},
-   signal:AbortSignal.timeout(8000)
-  });
-  if(!response.ok)return problem('OWNER_VERIFICATION_UNAVAILABLE','暫時無法確認管理員權限，請稍後再試',503,origin);
-  const member=await response.json();
+  const member=await new Starry({
+   baseUrl:'https://id.starry.phd',
+   fetch:(url,init)=>fetch(url,{...init,signal:AbortSignal.timeout(8000)})
+  }).me(bearer.slice(7));
   if(member?.staff_role!=='owner')return problem('FORBIDDEN','中央會員權限不足，無法修改費率',403,origin);
   return null;
  }catch{
@@ -58,20 +57,35 @@ function enabledFor(price,env){
 function safePrice(row,env){
  return {feature:row.feature,label:row.label,units:row.units,enabled:Boolean(row.enabled),available:enabledFor(row,env),version:row.version};
 }
-async function battery(endpoint,body,memberToken,env){
- const headers={'accept':'application/json','x-starry-app-key':env.STARRY_BATTERY_KEY};
- if(memberToken)headers.authorization='Bearer '+memberToken;
- if(body!==undefined)headers['content-type']='application/json';
- const response=await fetch('https://id.starry.phd'+endpoint,{
-  method:'POST',headers,body:body===undefined?undefined:JSON.stringify(body),
-  signal:AbortSignal.timeout(10000)
+async function battery(endpoint,payload,memberToken,env){
+ // Official Starry backend SDK is the only central Battery HTTP client.
+ // Task IDs and monetary units remain Clock-owned; no central D1 writes.
+ const client=new Starry({
+  baseUrl:'https://id.starry.phd',
+  serviceKey:env.STARRY_BATTERY_KEY,
+  fetch:(url,init)=>fetch(url,{...init,signal:AbortSignal.timeout(10000)})
  });
- const result=await response.json().catch(()=>null);
- if(!response.ok){
-  const err=Error('central_battery_failed');err.code=result?.error?.code||'CENTRAL_UNAVAILABLE';err.httpStatus=response.status;
-  throw err;
+ try{
+  if(endpoint==='/v1/battery/reservations'){
+   return await client.reserve(memberToken,{
+    taskType:payload.task_type,taskLabel:payload.task_label,units:payload.units,
+    idempotencyKey:payload.idempotency_key
+   });
+  }
+  const id=/^\/v1\/battery\/reservations\/([^/]+)\/(commit|release)$/.exec(endpoint);
+  if(!id)throw Error('invalid_battery_endpoint');
+  return id[2]==='commit'
+   ?await client.commit(decodeURIComponent(id[1]),payload?.units)
+   :await client.release(decodeURIComponent(id[1]));
+ }catch(error){
+  if(error instanceof StarryError){
+   const e=Error('central_battery_failed');
+   e.code=error.code||'CENTRAL_UNAVAILABLE';
+   e.httpStatus=error.status;
+   throw e;
+  }
+  throw error;
  }
- return result;
 }
 async function releaseQuiet(resId,env){
  if(!resId)return;
