@@ -65,6 +65,7 @@ body.fullscreen #app{max-width:none}body.theater header,body.theater .mode-toggl
 </div><p><a href="https://id.starry.phd/terms" target="_blank" rel="noopener noreferrer">服務條款</a> · <a href="https://id.starry.phd/privacy" target="_blank" rel="noopener noreferrer">隱私權政策</a></p><p><a href="https://id.starry.phd/account" target="_blank" rel="noopener noreferrer">開啟 Starry ID 會員資料／頭像管理</a></p><p class="note">倒數功能不需登入。登入使用 Starry 瀏覽器中繼；App 不保管 Google、Apple 密碼。</p></div></div>
 <p id="formError" class="note" style="color:var(--red)" role="alert"></p><div class="modal-actions"><button id="cancel" class="large-btn">取消</button><button id="save" class="large-btn primary">儲存</button></div><button id="delete" class="danger hidden">刪除此用途</button>
 </div></div>
+<script src="/starry-client.js"></script>
 <script>
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
@@ -253,6 +254,18 @@ $('appGateRetry').addEventListener('click',()=>{void checkAppGate()});
 const CLOCK_BACKEND='/api/clock';
 let webAccess=null,webMember=null,webRefreshPromise=null;
 const refreshingKey='clock:starry:refresh:v1',pendingKey='clock:starry:pending:v1';
+// Official single-file Starry ID SDK. Older sessions keep the exact same
+// Refresh Token key, so upgrading the web client doesn't sign members out.
+const sdk=globalThis.StarrySDK;
+const officialWeb=sdk?.StarryClient?new sdk.StarryClient({
+ baseUrl:STAR,appId:APPID,passkey:sdk.webPasskeyAdapter(),
+ storage:{
+  get:key=>sessionStorage.getItem(key==='starry.refresh.clock'?refreshingKey:key),
+  set:(key,value)=>sessionStorage.setItem(key==='starry.refresh.clock'?refreshingKey:key,value),
+  remove:key=>sessionStorage.removeItem(key==='starry.refresh.clock'?refreshingKey:key)
+ }
+}):null;
+function requireWebSdk(){if(!officialWeb)throw Error('中央會員登入元件尚未載入，請連線後重新整理');return officialWeb}
 const qs=(obj)=>JSON.stringify(obj);
 function alertAccount(message){$('accountError').textContent=String(message||'無法完成操作').slice(0,200)}
 async function starryReq(path,options={},access=null){
@@ -279,14 +292,22 @@ async function refreshWeb(){
  return webRefreshPromise;
 }
 async function webAuthorized(fn){
- if(!webAccess)await refreshWeb();
- try{return await fn(webAccess)}
- catch(e){if(e.status!==401)throw e;await refreshWeb();return fn(webAccess)}
+ const client=requireWebSdk();
+ const first=await client.getAccessToken();
+ if(!first)throw Error('請先登入 Starry ID');
+ try{return await fn(first)}
+ catch(e){
+  if(e.status!==401)throw e;
+  const next=await client.refresh(); // the SDK serializes concurrent refreshes
+  if(!next)throw e;
+  return fn(next);
+ }
 }
 async function loadWebMember(){
- if(!sessionStorage.getItem(refreshingKey))return null;
- try{return webMember=await webAuthorized(t=>starryReq('/v1/me',{},t))}
- catch{return webMember=null}
+ try{
+  if(!await requireWebSdk().restore())return webMember=null;
+  return webMember=await requireWebSdk().me();
+ }catch{return webMember=null}
 }
 function setMemberButtons(member){
  for(const id of ['loginGoogle','loginApple'])$(id).classList.toggle('hidden',Boolean(member));
