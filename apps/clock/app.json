@@ -17,8 +17,7 @@
       ],
       "entitlements": {
         "keychain-access-groups": [
-          "$(AppIdentifierPrefix)phd.starry.sso",
-          "$(AppIdentifierPrefix)phd.starry.clock"
+          "$(AppIdentifierPrefix)phd.starry.shared"
         ]
       }
     },
