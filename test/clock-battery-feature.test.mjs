@@ -148,6 +148,7 @@ test('central v2 contract: X units charged once, Owner price changes do not brea
    assert.equal(b.units,2);
    reserved++;
    if(centralMode==='cap')return response({error:{code:'BATTERY_APP_CAP'}},409);
+   if(centralMode==='maintenance')return response({error:{code:'SERVICE_UNAVAILABLE'}},503);
    if(centralMode==='insufficient')return response({error:{code:'BATTERY_INSUFFICIENT'}},409);
    return response({reservation_id:'test-reservation-'+reserved,task_type:b.task_type,status:'reserved',units:2,amount:centralMode==='mismatch'?4:2,replayed:false},201);
   }
@@ -175,11 +176,11 @@ test('central v2 contract: X units charged once, Owner price changes do not brea
   assert.equal(reserved,1);assert.equal(committed,1);
   env.BATTERY_CHARGES_ENABLED='true';
   db.pricing.enabled=1;db.pricing.units=2;
-  for(const [mode,id,code] of [['mismatch','00002','BATTERY_PRICE_MISMATCH'],['cap','00003','BATTERY_APP_CAP'],['insufficient','00004','BATTERY_INSUFFICIENT']]){
+  for(const [mode,id,code] of [['mismatch','00002','BATTERY_PRICE_MISMATCH'],['cap','00003','BATTERY_APP_CAP'],['insufficient','00004','BATTERY_INSUFFICIENT'],['maintenance','00005','SERVICE_UNAVAILABLE']]){
    centralMode=mode;
    const res=await handleClock(create(id),env,verify);
    const data=await res.json();
-   assert.equal(res.status,409);
+   assert.equal(res.status,mode==='maintenance'?503:409);
    assert.equal(data.error?.code,code);
    assert.equal([...db.presets.values()].filter(x=>x.state==='active').length,1);
    assert.equal(db.requests.get('member-1:request-'+id)?.state,'failed');
