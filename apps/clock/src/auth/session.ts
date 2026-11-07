@@ -18,6 +18,7 @@ import {
 } from '@clock/auth-contract';
 import type {RelayProvider, StarryMe} from '@clock/auth-contract';
 import appJson from '../../app.json';
+import {nativePasskeyAdapter} from './nativePasskeyAdapter';
 
 const REFRESH='clock:starry:refresh:v1';
 const LINK_PENDING='clock:starry:link:v2';
@@ -50,6 +51,7 @@ const starry=new StarryClient({
  baseUrl:STARRY_API,
  appId:'clock',
  storage,
+ passkey:Platform.OS==='web'?undefined:nativePasskeyAdapter,
  sha256Hex:text=>Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256,text),
  randomState:()=>Array.from(Crypto.getRandomBytes(32)).map(n=>n.toString(16).padStart(2,'0')).join(''),
  openAuthSession:async(url,returnUrl)=>{
