@@ -2340,7 +2340,7 @@ packages:
       react-native: '*'
 
   react-native-passkeys@0.4.2:
-    resolution: {tarball: https://registry.npmjs.org/react-native-passkeys/-/react-native-passkeys-0.4.2.tgz}
+    resolution: {integrity: sha512-2dwXSkSWDICF44jTbiKykOjTQjwTOUOt2PCapoE5ddnTF8han6KFM/7MsgulmKn3oJpkcACjwvm8LMBxW0N2iQ==}
     peerDependencies:
       expo: '>=53.0.0'
       react: '*'
