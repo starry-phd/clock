@@ -1,5 +1,5 @@
-import React, {useCallback, useEffect, useState} from 'react';
-import {Alert, Image, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View} from 'react-native';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
+import {Alert, AppState, Image, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View} from 'react-native';
 import {updateProfile, StarryApiError} from '@clock/auth-contract';
 import appConfig from '../../app.json';
 import type {RelayProvider, StarryMe} from '@clock/auth-contract';
@@ -8,6 +8,16 @@ import {StarryError} from './starry-client';
 import {OwnerPricingPanel} from './OwnerPricingPanel';
 
 const api='https://id.starry.phd';
+// Signed Starry ID avatars are refreshed by /v1/me; the logical image cache key
+// is the URL path before '?' (never member_no or user_id). Never persist bytes.
+function centralAvatar(raw:unknown):{uri:string;cacheKey:string}|null{
+ if(typeof raw!=='string'||!raw)return null;
+ try{
+  const url=new URL(raw,api);
+  if(url.origin!==api||!url.pathname.startsWith('/v1/avatars/'))return null;
+  return {uri:url.href,cacheKey:url.pathname};
+ }catch{return null;}
+}
 const C={fg:'#F7FAFF',bg:'#0B1220',line:'#35445E',panel:'#17263B',muted:'#A7BAD1',mint:'#80F4D6',danger:'#FF8E95'};
 function Btn({label,onPress,danger=false}:{label:string;onPress:()=>void;danger?:boolean}){
  return <Pressable accessibilityRole="button" onPress={onPress} style={[s.btn,danger&&{borderColor:C.danger}]}><Text style={[s.btnText,danger&&{color:C.danger}]}>{label}</Text></Pressable>;
@@ -24,6 +34,7 @@ export function StarryAccountPanel(){
  const [deletePhrase,setDeletePhrase]=useState('');
  const [battery,setBattery]=useState('');
  const [avatarFailed,setAvatarFailed]=useState(false);
+ const previousAvatarPath=useRef<string|null>(null);
  const [passkeys,setPasskeys]=useState<{id:string;name:string;created_at:number;last_used_at:number|null}[]>([]);
  const [error,setError]=useState('');
  const refresh=useCallback(async()=>{
@@ -35,7 +46,13 @@ export function StarryAccountPanel(){
   setStatus(gateMessage);
   if(config.state!=='ok')return;
   const member=await loadMember();
-  setAvatarFailed(false); // Signed avatar URLs expire; load the fresh GET /v1/me URL every time.
+  // Avatar path changes when the member replaces the avatar; avoid keying it
+  // to a one-hour signature or to user_id. A new path must refresh all views.
+  const nextAvatarPath=centralAvatar(member?.profile?.avatar_url)?.cacheKey??null;
+  if(previousAvatarPath.current!==nextAvatarPath){
+   previousAvatarPath.current=nextAvatarPath;
+   setAvatarFailed(false);
+  }
   setMe(member);setDisplayName(member?.profile.display_name??'');
   if(member){
    if(!member.consent.required){
@@ -57,6 +74,13 @@ export function StarryAccountPanel(){
  },[]);
  useEffect(()=>{void refresh().catch(()=>setStatus('中央會員暫時無法連線'));},[refresh]);
  useEffect(()=>onStarryAuthChange(()=>{void refresh().catch(()=>{});}),[refresh]);
+ // Re-read the signed avatar and chosen shown_name whenever Clock resumes.
+ useEffect(()=>{
+  const subscription=AppState.addEventListener('change',state=>{
+   if(state==='active')void refresh().catch(()=>{});
+  });
+  return()=>subscription.remove();
+ },[refresh]);
  async function action(task:()=>Promise<void>){
   if(busy)return;
   setBusy(true);setError('');
@@ -101,8 +125,8 @@ export function StarryAccountPanel(){
  // Member numbers are public, mutable display handles, NEVER a primary key.
  // Read the latest /v1/me on each settings screen entry/refresh.
  const memberNo=typeof me?.member_no==='string'&&/^[A-Z]{2}\d{7,10}$/.test(me.member_no)?me.member_no:null;
- const signedAvatar=typeof me?.profile?.avatar_url==='string'&&me.profile.avatar_url.startsWith('https://')
-  ?me.profile.avatar_url:null;
+ const signedAvatar=centralAvatar(me?.profile?.avatar_url);
+ const shownName=me?.profile?.shown_name??me?.profile?.initials??'?';
  async function latestMemberNo():Promise<string|null>{
   // Member number can be changed at any time in the central account: fetch
   // GET /v1/me immediately before opening either public or invitation link.
@@ -149,13 +173,13 @@ export function StarryAccountPanel(){
    </View>:<View style={s.block}>
     <View style={s.memberHeader}>
       {signedAvatar&&!avatarFailed
-        ?<Image source={{uri:signedAvatar}} style={s.avatar} onError={()=>setAvatarFailed(true)}
-          accessibilityLabel="Starry ID 會員頭像"/>
+        ?<Image key={signedAvatar.cacheKey} source={{uri:signedAvatar.uri}} style={s.avatar}
+          onError={()=>setAvatarFailed(true)} accessibilityLabel="Starry ID 會員頭像"/>
         :<View style={s.avatarFallback} accessibilityLabel="Starry ID 會員頭像文字">
           <Text style={s.avatarInitials}>{me.profile.initials||'?'}</Text>
         </View>}
       <View style={{flex:1}}>
-        <Text style={s.name}>{me.profile.display_name||'繁星會員'}</Text>
+        <Text style={s.name}>{shownName}</Text>
         <Text style={s.info}>會員編號：{memberNo||'尚未取得'}</Text>
       </View>
     </View>
@@ -174,9 +198,9 @@ export function StarryAccountPanel(){
        <Btn label="我已閱讀並同意最新條款" onPress={()=>{void agree();}}/>
       </View>:null}
       {!me.consent.required?<View style={s.block}>
-        <Text style={s.info}>顯示名稱</Text>
+        <Text style={s.info}>姓名（主要顯示名稱依 Starry ID 帳號中心設定）</Text>
         <TextInput style={s.input} value={displayName} onChangeText={setDisplayName} maxLength={50} placeholder="顯示名稱" placeholderTextColor={C.muted}/>
-        <Btn label="儲存會員名稱" onPress={()=>{void saveName();}}/>
+        <Btn label="儲存會員姓名" onPress={()=>{void saveName();}}/>
         <Btn label="會員資料／頭像管理" onPress={()=>{void Linking.openURL(api+'/account');}}/>
         <Text style={s.info}>其他登入方式與頭像可從 Starry ID 帳號中心管理，不會在 Clock 建立獨立會員資料。</Text>
         <Btn label="綁定 Apple 登入方式" onPress={()=>{void action(async()=>{await startStarryRelay('apple','link');});}}/>
