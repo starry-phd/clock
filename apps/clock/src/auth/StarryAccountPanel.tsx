@@ -101,13 +101,34 @@ export function StarryAccountPanel(){
  // Member numbers are public, mutable display handles, NEVER a primary key.
  // Read the latest /v1/me on each settings screen entry/refresh.
  const memberNo=typeof me?.member_no==='string'&&/^[A-Z]{2}\d{7,10}$/.test(me.member_no)?me.member_no:null;
- const publicProfileUrl=memberNo?api+'/'+encodeURIComponent(memberNo):null;
- const inviteUrl=memberNo?api+'/Invite/'+encodeURIComponent(memberNo):null;
  const signedAvatar=typeof me?.profile?.avatar_url==='string'&&me.profile.avatar_url.startsWith('https://')
   ?me.profile.avatar_url:null;
+ async function latestMemberNo():Promise<string|null>{
+  // Member number can be changed at any time in the central account: fetch
+  // GET /v1/me immediately before opening either public or invitation link.
+  const fresh=await loadMember();
+  setMe(fresh);
+  const no=fresh?.member_no;
+  return typeof no==='string'&&/^[A-Z]{2}\d{7,10}$/.test(no)?no:null;
+ }
+ function openPublicProfile(){
+  void (async()=>{
+   try{
+    const no=await latestMemberNo();
+    if(!no){setError('會員編號尚未取得，請重新整理會員資料');return;}
+    await Linking.openURL(api+'/'+encodeURIComponent(no));
+   }catch{setError('無法開啟公開會員頁');}
+  })();
+ }
  function shareInvite(){
-  if(!inviteUrl){setError('會員編號暫時無法取得，請重新整理會員資料');return;}
-  void Share.share({message:inviteUrl}).catch(()=>setError('無法開啟系統分享功能'));
+  void (async()=>{
+   try{
+    const no=await latestMemberNo();
+    if(!no){setError('會員編號尚未取得，請重新整理會員資料');return;}
+    const inviteUrl=api+'/Invite/'+encodeURIComponent(no);
+    await Share.share({message:inviteUrl});
+   }catch{setError('無法開啟系統分享功能');}
+  })();
  }
  function contactSupport(){
   const build=Platform.OS==='ios'?appConfig.expo.ios.buildNumber:Platform.OS==='android'?appConfig.expo.android.versionCode:'Web';
@@ -139,7 +160,7 @@ export function StarryAccountPanel(){
       </View>
     </View>
     {memberNo&&<>
-      <Btn label="查看我的公開會員頁" onPress={()=>{if(publicProfileUrl)void Linking.openURL(publicProfileUrl);}}/>
+      <Btn label="查看我的公開會員頁" onPress={openPublicProfile}/>
       <Btn label="分享我的邀請連結" onPress={shareInvite}/>
     </>}
     <Text style={s.info}>帳號狀態：{me.status}</Text>
