@@ -76,3 +76,10 @@
 - 付費 POST 新請求必須先由後端確認會員免費雲端已有 3 組；否則回 `FREE_SLOTS_NOT_READY`，確保真正第 4 組才可能扣 X。已提交/保留請求沿用冪等重播，不被新增的檢查打斷。
 - 新增 `test/clock-free-sync.test.mjs`，並納入 CI：模擬會員隔離、首次同步不可覆寫、舊版本衝突、第三組刪除後免費補位、超過 3 組拒絕、未同步不得扣量。這是程式模擬測試，**不是已完成 staging D1 遷移或實機跨裝置驗收**。
 - 部署安全門檻：必須在 staging Clock D1 **先執行 migration 0004** 再部署這個分支的後端；現有正式版與 Starry ID 完全不動。正式仍不合併、不部署。
+
+### Android SHA-256 自動擷取（2026-11-07）
+
+- 已在 PR #15 新增 **只讀** GitHub Actions `.github/workflows/clock-android-sha256.yml`。手動觸發後可從 `EXPO_TOKEN` 讀取最新已完成的 EAS `preview` APK，或提供已簽章 APK 的 HTTPS 直接下載網址，執行 `apksigner verify --print-certs` 擷取**真正憑證** SHA-256；輸出於 GitHub Summary 與 `clock-android-sha256.txt` Artifact。
+- 不產生新的無關簽章、不開啟私鑰、不啟動新的 EAS Build、不上架、不回寫 Starry ID／Play Console。沒有簽章 APK 或 EAS 存取權時**必須明確失敗，不得捏造指紋**。
+- **用途區分**：從 APK 擷取的是 Expo 安裝版的憑證指紋；Google Play 下載版通常由 Google 重新簽章，需要 Google Play Console「App integrity」中 **App signing key certificate SHA-256**，不可以拿 Expo AAB upload key 指紋冒充。
+- 目前此新 Workflow 尚在 Draft PR，未合併主分支；尚未執行，也**未取得任何真實 SHA-256 指紋**。必要前提為可存取已簽署的 EAS APK 或其直接下載網址。
