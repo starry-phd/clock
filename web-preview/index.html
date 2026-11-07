@@ -61,7 +61,7 @@ body.fullscreen #app{max-width:none}body.theater header,body.theater .mode-toggl
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 const initial=[{id:'break',name:'休息時間',durationSeconds:300},{id:'opening',name:'開場致詞',durationSeconds:180},{id:'speech',name:'主題分享',durationSeconds:1200}];
-const key='clock:preferences:v1';let cloudPresetIds=new Set(),pendingAdd=null,saveBusy=false;let presets=initial.map(x=>({...x}));let selected='break';let lead=10,muted=false,mode='timer',status='idle',durationMs=300000,remainMs=300000,deadline=null,warned=false,completed=false,editor=null,dialog=null,ctx=null,wakeLock=null,theater=false;
+const key='clock:preferences:v1';let cloudPresetIds=new Set(),freePresetSlots=[],freeSyncReady=false,pendingAdd=null,saveBusy=false;let presets=initial.map(x=>({...x}));let selected='break';let lead=10,muted=false,mode='timer',status='idle',durationMs=300000,remainMs=300000,deadline=null,warned=false,completed=false,editor=null,dialog=null,ctx=null,wakeLock=null,theater=false;
 function num(n,min,max){n=Number(n);return Number.isInteger(n)&&n>=min&&n<=max?n:null}
 function fmt(s){s=Math.max(0,Math.ceil(s));return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')}
 function read(){try{const raw=JSON.parse(localStorage.getItem(key)||'null');if(!raw||typeof raw!=='object')return;
@@ -119,7 +119,7 @@ const presetId=editor?.id||(pendingAdd?.fingerprint===fingerprint?pendingAdd.id:
 const p={id:presetId,name,durationSeconds:m*60+sec};
 saveBusy=true;$('save').disabled=true;$('formError').textContent='';
 try{
- if(!editor&&presets.length>=3){
+ if(!editor&&presets.length>=3&&(!freeSyncReady||freePresetSlots.length>=3)){
   const pricing=await clockReq('/v1/pricing');
   const item=pricing.features.find(x=>x.feature==='clock.preset_create');
   if(!item?.enabled||!item.available)throw Error('第 4 組的電池扣量暫未開放。請使用下方「免費取代並儲存」，選一組既有用途取代；不會扣電池。');
@@ -131,6 +131,15 @@ try{
    preset_id:presetId,request_id:requestId,name,duration_seconds:p.durationSeconds,accepted_units:item.units
   },token));
   pendingAdd=null;cloudPresetIds.add(presetId);
+ }else if(!editor&&freeSyncReady){
+  const result=await webAuthorized(token=>clockReq('/v1/presets/free','POST',p,token));
+  freePresetSlots=result.presets;
+ }else if(editor?.id&&freeSyncReady&&freePresetSlots.some(x=>x.id===editor.id)){
+  const current=freePresetSlots.find(x=>x.id===editor.id);
+  const result=await webAuthorized(token=>clockReq('/v1/presets/free/'+encodeURIComponent(editor.id),'PATCH',{
+   name,duration_seconds:p.durationSeconds,version:current.version
+  },token));
+  freePresetSlots=result.presets;
  }else if(editor?.id&&cloudPresetIds.has(editor.id)){
   await webAuthorized(token=>clockReq('/v1/presets/'+encodeURIComponent(editor.id),'PATCH',{
    name,duration_seconds:p.durationSeconds
@@ -153,7 +162,13 @@ async function replaceFree(){
  const updated={id:target.id,name,durationSeconds:m*60+sec};
  saveBusy=true;$('save').disabled=true;$('freeReplaceSave').disabled=true;$('formError').textContent='';
  try{
-  if(cloudPresetIds.has(target.id)){
+  const free=freeSyncReady?freePresetSlots.find(p=>p.id===target.id):null;
+  if(free){
+   const result=await webAuthorized(token=>clockReq('/v1/presets/free/'+encodeURIComponent(target.id),'PATCH',{
+    name,duration_seconds:updated.durationSeconds,version:free.version
+   },token));
+   freePresetSlots=result.presets;
+  }else if(cloudPresetIds.has(target.id)){
    await webAuthorized(token=>clockReq('/v1/presets/'+encodeURIComponent(target.id),'PATCH',{
     name,duration_seconds:updated.durationSeconds
    },token));
@@ -169,7 +184,11 @@ $('start').addEventListener('click',start);$('reset').addEventListener('click',r
 if(!editor||presets.length<=1||saveBusy)return;
 saveBusy=true;
 try{
- if(cloudPresetIds.has(editor.id)){
+ const free=freeSyncReady?freePresetSlots.find(p=>p.id===editor.id):null;
+ if(free){
+  const result=await webAuthorized(token=>clockReq('/v1/presets/free/'+encodeURIComponent(editor.id),'DELETE',{version:free.version},token));
+  freePresetSlots=result.presets;
+ }else if(cloudPresetIds.has(editor.id)){
   if(!confirm('刪除此雲端計時器？先前使用的繁星電池不會退還。'))return;
   await webAuthorized(token=>clockReq('/v1/presets/'+encodeURIComponent(editor.id),'DELETE',undefined,token));
   cloudPresetIds.delete(editor.id);
@@ -261,13 +280,46 @@ async function clockReq(path,method='GET',data,token){
  return payload;
 }
 async function syncCloudPresets(){
+ freeSyncReady=false;
  try{
   const result=await webAuthorized(token=>clockReq('/v1/presets','GET',undefined,token));
   cloudPresetIds=new Set(result.presets.map(p=>p.id));
-  const seen=new Set(presets.map(p=>p.id));
-  const extra=result.presets.filter(p=>!seen.has(p.id)).map(p=>({id:p.id,name:p.name,durationSeconds:p.durationSeconds}));
-  if(extra.length){presets=[...presets,...extra].slice(0,50);persist();renderPresets();}
- }catch{}
+  const saved=presets.map(p=>({...p}));
+  const oldOwner=localStorage.getItem('clock:free-owner:v1');
+  const memberId=webMember?.user_id;
+  if(!memberId)return;
+  const localFree=oldOwner&&oldOwner!==memberId
+   ?initial:saved.filter(p=>!cloudPresetIds.has(p.id)).slice(0,3);
+  let free;
+  try{
+   free=(await webAuthorized(token=>clockReq('/v1/presets/free/init','POST',{
+    presets:localFree.length?localFree:initial
+   },token))).presets;
+  }catch{
+   // Until the migration is deployed, keep all local data and merge paid
+   // presets as the prior PWA did. No extra fees.
+   const seen=new Set(presets.map(p=>p.id));
+   const extra=result.presets.filter(p=>!seen.has(p.id));
+   if(extra.length){presets=[...presets,...extra].slice(0,50);persist();renderPresets();}
+   return;
+  }
+  const canonical=[...free.map(p=>({id:p.id,name:p.name,durationSeconds:p.durationSeconds})),...result.presets];
+  const known=new Set(canonical.map(p=>p.id));
+  const legacy=saved.filter(p=>!known.has(p.id));
+  if(legacy.length){
+   const backupKey='clock:legacy-free-backup:v2:'+(oldOwner||memberId);
+   const prior=JSON.parse(localStorage.getItem(backupKey)||'[]');
+   if(!Array.isArray(prior))throw Error('舊資料備份異常');
+   const seen=new Set(prior.map(p=>p.id));
+   localStorage.setItem(backupKey,JSON.stringify([...prior,...legacy.filter(p=>!seen.has(p.id))]));
+  }
+  localStorage.setItem('clock:free-owner:v1',memberId);
+  freePresetSlots=free;freeSyncReady=true;
+  presets=canonical.slice(0,50);
+  if(!presets.some(p=>p.id===selected)){selected=presets[0]?.id||selected;reset();}
+  else if(status!=='running')reset();else update();
+  persist();renderPresets();
+ }catch{} // Signed-out or offline timers are unaffected.
 }
 async function loadOwnerPrices(){
  const root=$('ownerPricing'),rows=$('ownerPriceRows');
@@ -329,7 +381,7 @@ async function loadMemberWebUI(){
  await syncCloudPresets();
  await loadOwnerPrices();
 }
-function logoutWebLocal(){webAccess=null;webMember=null;cloudPresetIds=new Set();sessionStorage.removeItem(refreshingKey);sessionStorage.removeItem(pendingKey);setMemberButtons(null);$('batteryPanel').classList.add('hidden');$('ownerPricing').classList.add('hidden');$('batteryBalance').textContent='';}
+function logoutWebLocal(){webAccess=null;webMember=null;cloudPresetIds=new Set();freePresetSlots=[];freeSyncReady=false;sessionStorage.removeItem(refreshingKey);sessionStorage.removeItem(pendingKey);setMemberButtons(null);$('batteryPanel').classList.add('hidden');$('ownerPricing').classList.add('hidden');$('batteryBalance').textContent='';}
 function bytesHex(bytes){return Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('')}
 async function relayWeb(provider,operation='login'){
  $('accountError').textContent='';
