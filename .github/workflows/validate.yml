@@ -26,7 +26,7 @@ jobs:
     needs: gitleaks
     runs-on: ubuntu-latest
     env:
-      NODE_OPTIONS: --experimental-strip-types
+      NODE_OPTIONS: --experimental-transform-types
     steps:
       - uses: actions/checkout@v4
         with:
