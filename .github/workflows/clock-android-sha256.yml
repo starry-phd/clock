@@ -1,0 +1,57 @@
+name: Clock Android SHA-256 (signed APK only)
+# Read-only: fetches an existing, signed preview APK, never builds or publishes.
+on:
+  workflow_dispatch:
+    inputs:
+      apk_url:
+        description: 'Optional: HTTPS direct URL of an already signed Expo preview APK; blank = newest signed Expo preview build'
+        required: false
+        type: string
+permissions:
+  contents: read
+jobs:
+  fingerprint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      APK_URL: ${{ inputs.apk_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Find latest signed Expo APK (unless a direct APK URL was provided)
+        if: env.APK_URL == ''
+        working-directory: apps/clock
+        run: |
+          set -euo pipefail
+          if [ -z "${EXPO_TOKEN}" ]; then
+            echo 'No EXPO_TOKEN and no APK URL. Set EXPO_TOKEN in GitHub Actions secrets or provide a signed APK URL.' >&2
+            exit 2
+          fi
+          npx --yes eas-cli@latest build:list -p android --status finished --build-profile preview --limit 20 --json --non-interactive > "$RUNNER_TEMP/eas-builds.json"
+      - name: Extract exact APK signing certificate SHA-256 (no private key)
+        run: |
+          set -euo pipefail
+          if [ -n "${APK_URL}" ]; then
+            # URL is supplied only via environment; never echo it to logs.
+            python3 tools/extract_android_sha256.py --apk-url "${APK_URL}" --output "$RUNNER_TEMP/clock-android-sha256.txt"
+          else
+            python3 tools/extract_android_sha256.py --eas-builds "$RUNNER_TEMP/eas-builds.json" --output "$RUNNER_TEMP/clock-android-sha256.txt"
+          fi
+          {
+            echo '## Clock Android signing certificate SHA-256'
+            echo
+            echo '```text'
+            cat "$RUNNER_TEMP/clock-android-sha256.txt"
+            echo '```'
+            echo
+            echo '**Important:** APK certificate fingerprint is for sideloaded Expo builds.'
+            echo 'For Google Play Passkeys, use the **App signing certificate SHA-256** from Play Console → App integrity.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clock-android-sha256
+          path: ${{ runner.temp }}/clock-android-sha256.txt
+          retention-days: 30
