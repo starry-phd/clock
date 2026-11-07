@@ -77,7 +77,7 @@ test('v18: Web member header displays centrally supplied initials when avatar is
   referrerPolicy:'',alt:''};}};
  const member={user_id:'uuid-not-a-public-link',member_no:'TW0123456',status:'active',
   consent:{required:false},profile:{display_name:'測試會員',initials:'測',avatar_url:null}};
- const ctx={$:node,window:{isSecureContext:false},navigator:{},document,STAR:'https://id.starry.phd'};
+ const ctx={$:node,window:{isSecureContext:false},navigator:{},document,STAR:'https://id.starry.phd',webPasskeysSupported:()=>false};
  runInNewContext(code+'\nsetMemberButtons(member);', {...ctx,member});
  assert.equal(node('memberNumber').textContent,'會員編號：TW0123456');
  assert.equal(node('publicProfile').href,'https://id.starry.phd/TW0123456');
