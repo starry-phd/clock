@@ -95,7 +95,10 @@ function fakeClockDb(){
      }
      throw Error('Unknown D1 first: '+sql);
     },
-    async all(){return {results:[pricing]}},
+    async all(){
+     if(sql.includes('FROM clock_free_presets'))return {results:[0,1,2].map(slot=>({slot,id:['break','opening','speech'][slot],name:'免費',durationSeconds:300,version:1}))};
+     return {results:[pricing]};
+    },
     async run(){
      let changes=0;
      if(sql.startsWith('INSERT OR IGNORE INTO clock_requests')){
