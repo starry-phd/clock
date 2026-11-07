@@ -91,3 +91,9 @@
 - Expo iOS/Android：加入 `react-native-passkeys@0.4.2`（pnpm lockfile 與 npm SHA-512 integrity 固定）及惰性載入的 `nativePasskeyAdapter.ts`。通過官方 `StarryClient` 的 Passkey 登入／新增／列出／刪除 API；強制驗證 RP id，系統取消與未支援裝置有安全錯誤處理。iOS Associated Domain 維持 `webcredentials:id.starry.phd`。
 - 自動測試 `test/clock-passkey-parity.test.mjs` 已納入 CI，含 Web base64url/RP 轉換、登入備用、Native module/SDK 連接、不得放入中央 Secret，以及原有 Expo 型別檢查。**CI 通過不代表已在 iPhone／Android 安裝版完成 Passkey 實測**。
 - 待辦：取得已簽署 EAS iOS／Android 測試安裝包與真正裝置登入／註冊／移除結果，核對 Play signing 與 Expo preview 指紋是否分別登記，確認 AASA／Asset Links 與 Web ROR 真正生效。最新 SDK 另有可選擇的跨 App shared-storage 功能，尚未啟用，不可稱跨 App SSO 已上線。正式合併、上架與 Battery 扣量依原有門檻辦理。
+
+### Staging Clock D1 資料表已套用（2026-11-07）
+
+- **實際已執行**：Cloudflare 帳號中的 `clock-app-db-staging`（D1 `ae8f940b-c4d0-4df1-af55-bb4b6c8666bb`）成功套用 `0004_free_preset_slots.sql`；唯讀驗證 `clock_free_presets` 表存在，原 `clock_presets`、`clock_requests` 均仍為 0。
+- **沒有執行**：正式 Clock D1 migration、正式或 staging Worker 程式部署、Starry ID 的程式／D1／管理設定修改、Battery Secret 更新、扣電池。既有兩環境 Battery 總開關仍維持已知的 `false`，未重新更動。
+- **下一步**：待 CI 通過，以相同 PR 原始碼部署 `clock-api-staging` 並驗證免費同步 API；啟用 staging 中央扣量前仍須後端 Secret 與授權測試會員，且需 Owner 透過管理 API 啟用 staging 費率；正式版不部署。
