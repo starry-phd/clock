@@ -43,6 +43,21 @@ export default function ClockScreen() {
   const [saving,setSaving]=useState(false);
   const pendingCreate=useRef<{fingerprint:string;requestId:string;presetId:string}|null>(null);
   const [memberStatus,setMemberStatus]=useState('檢查中…');
+  const [centralGate,setCentralGate]=useState<{blocked:boolean;message:string;notices:string[]}>({blocked:false,message:'',notices:[]});
+  const checkCentralGate=useCallback(async()=>{
+    const result=await readAppConfig();
+    if(result.kind==='active'){
+      const time=Date.now();
+      const messages=(result.value.notices||[]).filter(n=>n.starts_at<=time&&n.ends_at>=time).map(n=>n.message);
+      setCentralGate({blocked:false,message:'',notices:messages});
+      setMemberStatus('中央 App 已登記');
+    }else{
+      // A network outage should not block the offline countdown.
+      const blocked=result.kind==='disabled'||result.kind==='update_required';
+      setCentralGate({blocked,message:result.message,notices:[]});
+      setMemberStatus(result.message);
+    }
+  },[]);
   const [timer,setTimer]=useState<TimerSnapshot>(newTimer(DEFAULT_PRESETS[0].durationSeconds));
   const timerRef=useRef(timer);
   const leadRef=useRef(alertSeconds);
@@ -75,10 +90,8 @@ export default function ClockScreen() {
     AsyncStorage.setItem(DATA_KEY,JSON.stringify({presets,selectedId,alertSeconds,muted})).catch(()=>{});
   },[ready,presets,selectedId,alertSeconds,muted]);
   useEffect(()=>{
-    let live=true;
-    readAppConfig().then(result=>{if(live)setMemberStatus(result.kind==='active'?'中央 App 已登記':result.message)}).catch(()=>{if(live)setMemberStatus('中央會員暫時無法連線')});
-    return()=>{live=false};
-  },[]);
+    void checkCentralGate().catch(()=>setMemberStatus('中央會員暫時無法連線'));
+  },[checkCentralGate]);
   useEffect(()=>{
     const t=setInterval(()=>{
       const ms=Date.now();setNow(ms);
@@ -91,10 +104,11 @@ export default function ClockScreen() {
       if(state==='active'){
         const ms=Date.now(); const r=tickTimer(timerRef.current,ms,leadRef.current);
         setNow(ms);setTimerSync(r.timer);if(r.alert||r.finished)play();
+        void checkCentralGate().catch(()=>{}); // Re-check on resume, not in a polling loop.
       }
     });
     return()=>{clearInterval(t);s.remove()};
-  },[play,setTimerSync]);
+  },[play,setTimerSync,checkCentralGate]);
 
   // Merge server-authoritative charged presets on the same Starry user_id.
   // Existing device presets are preserved; they are grandfathered and not back-charged.
@@ -205,7 +219,16 @@ export default function ClockScreen() {
   const display=mode==='clock'?formatLocalClock(new Date(now)):formatCountdown(timer.remainingMs/1000);
   const selected=presets.find(x=>x.id===selectedId)||presets[0];
 
+  if(centralGate.blocked)return <View style={[styles.screen,{justifyContent:'center',padding:24,gap:16}]}>
+    <Text style={{color:COLORS.fg,fontSize:26,fontWeight:'800'}}>Clock 暫時無法使用</Text>
+    <Text style={{color:COLORS.muted,fontSize:17}}>{centralGate.message}</Text>
+    <Text style={{color:COLORS.muted}}>請等候業主恢復服務或更新 App；不會自動反覆請求中央服務。</Text>
+    <Button label="重新檢查" onPress={()=>{void checkCentralGate();}}/>
+  </View>;
   return <View style={styles.screen}>
+    {centralGate.notices.length>0?<View style={{padding:10,borderBottomWidth:1,borderColor:COLORS.line}}>
+      {centralGate.notices.map((message,i)=><Text key={i} style={{color:COLORS.orange}}>{message}</Text>)}
+    </View>:null}
     <View style={styles.top}>
       <Text style={styles.brand}>CLOCK</Text>
       <Pressable onPress={()=>{setSettingSeconds(String(alertSeconds));setSettings(true)}} accessibilityRole="button"><Text style={styles.topAction}>設定 ⚙</Text></Pressable>
