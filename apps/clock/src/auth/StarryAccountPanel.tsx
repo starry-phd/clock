@@ -21,6 +21,7 @@ export function StarryAccountPanel(){
  const [status,setStatus]=useState('正在檢查 Starry ID…');
  const [busy,setBusy]=useState(false);
  const [displayName,setDisplayName]=useState('');
+ const [deletePhrase,setDeletePhrase]=useState('');
  const [battery,setBattery]=useState('');
  const [passkeys,setPasskeys]=useState<{id:string;name:string;created_at:number;last_used_at:number|null}[]>([]);
  const [error,setError]=useState('');
@@ -87,9 +88,10 @@ export function StarryAccountPanel(){
   await action(async()=>{await withAccess(t=>updateProfile(t,me.profile.version,{display_name:name}));});
  }
  async function deleteSelf(){
+  if(deletePhrase.trim()!=='DELETE'){setError('請先輸入 DELETE 才能進行永久刪除');return;}
   const ok=await confirmAction('永久刪除 Starry 帳號','確認後將立即永久刪除會員帳號，無法撤回，且不會自動取消 App Store／Google Play 訂閱。');
   if(!ok)return;
-  await action(async()=>{await withAccess(t=>deleteAccount(t));await clearSession();setMe(null);});
+  await action(async()=>{await withAccess(t=>deleteAccount(t));await clearSession();setMe(null);setDeletePhrase('');});
  }
  function contactSupport(){
   const build=Platform.OS==='ios'?appConfig.expo.ios.buildNumber:Platform.OS==='android'?appConfig.expo.android.versionCode:'Web';
@@ -146,6 +148,9 @@ export function StarryAccountPanel(){
       </View>:null}
       <Btn label={Platform.OS==='ios'?'登出所有繁星 App':'登出 Clock（Android 共用登入待驗證）'} onPress={()=>{void action(async()=>{await signOut();setMe(null);});}}/>
       <Btn label="登出所有裝置" onPress={()=>{void action(async()=>{if(await confirmAction('登出所有裝置','這會使全部 Starry ID 裝置的登入狀態失效。')){await signOutEverywhere();setMe(null);}});}}/>
+      <Text style={s.error}>永久刪除前，請先輸入 DELETE；無法恢復，也不會自動取消商店訂閱。</Text>
+      <TextInput style={s.input} value={deletePhrase} onChangeText={setDeletePhrase}
+        placeholder="輸入 DELETE 確認" placeholderTextColor={C.muted} autoCapitalize="characters"/>
       <Btn danger label="永久刪除 Starry 會員帳號" onPress={()=>{void deleteSelf();}}/>
     </>}
    </View>}
