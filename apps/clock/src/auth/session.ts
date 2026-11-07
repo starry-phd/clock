@@ -89,6 +89,11 @@ export async function withAccess<T>(fn:(accessToken:string)=>Promise<T>):Promise
 }
 export async function loadMember():Promise<StarryMe|null>{
   try{
+    if(Platform.OS!=='web'){
+      // Prior versions persisted Access Tokens. The official SDK keeps them in
+      // memory only; remove the obsolete disk copy on the first account check.
+      await SecureStore.deleteItemAsync(legacyAccess).catch(()=>{});
+    }
     if(!(await starry.restore()))return null;
     return (await starry.me()) as unknown as StarryMe;
   }catch{return null;}
@@ -153,6 +158,8 @@ export async function signOut():Promise<void>{
  await clearSession();
 }
 export async function signOutEverywhere():Promise<void>{
- await starry.signOutEverywhere();
- if(Platform.OS!=='web')await SecureStore.deleteItemAsync(legacyAccess).catch(()=>{});
+ try{await starry.signOutEverywhere();}
+ finally{
+   if(Platform.OS!=='web')await SecureStore.deleteItemAsync(legacyAccess).catch(()=>{});
+ }
 }
