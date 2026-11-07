@@ -44,6 +44,7 @@ export default function ClockScreen() {
   const [cloudIds,setCloudIds]=useState<string[]>([]);
   const [freeSlots,setFreeSlots]=useState<FreePreset[]>([]);
   const [freeSyncReady,setFreeSyncReady]=useState(false);
+  const [legacyBackups,setLegacyBackups]=useState<ClockPreset[]|null>(null);
   const [saving,setSaving]=useState(false);
   const pendingCreate=useRef<{fingerprint:string;requestId:string;presetId:string}|null>(null);
   const [memberStatus,setMemberStatus]=useState('檢查中…');
@@ -162,11 +163,24 @@ export default function ClockScreen() {
       const next=sanitizePresets(canonical);
       setPresets(next);
       const select=next.find(p=>p.id===selectedRef.current)||next[0];
-      if(select){setSelectedId(select.id);setTimerSync(newTimer(select.durationSeconds));}
+      // Synchronizing metadata must not interrupt an active countdown.
+      if(select&&select.id!==selectedRef.current){
+        setSelectedId(select.id);
+        setTimerSync(newTimer(select.durationSeconds));
+      }
     })().catch(()=>{}); // offline countdown never depends on login
     return()=>{live=false};
   },[ready,settings,setTimerSync]);
 
+  const showLegacyBackups=useCallback(async()=>{
+    try{
+      const memberId=await AsyncStorage.getItem('clock:free-owner:v1');
+      if(!memberId){Alert.alert('尚未完成雲端同步','登入 Starry ID 並同步後，才會建立會員專屬備份。');return;}
+      const raw=await AsyncStorage.getItem('clock:legacy-free-backup:v2:'+memberId);
+      const parsed=raw?JSON.parse(raw):[];
+      setLegacyBackups(Array.isArray(parsed)?parsed.filter(p=>p&&typeof p.id==='string'&&typeof p.name==='string'&&Number.isInteger(p.durationSeconds)&&p.durationSeconds>=1&&p.durationSeconds<=86399):[]);
+    }catch{Alert.alert('備份無法讀取','裝置舊用途仍保留在原本的本機備份中。');}
+  },[]);
   const choose=useCallback((p:ClockPreset)=>{setSelectedId(p.id);setTimerSync(newTimer(p.durationSeconds));},[setTimerSync]);
   const toggle=useCallback(()=>{
     const cur=timerRef.current;
@@ -339,6 +353,19 @@ export default function ClockScreen() {
       <Text style={styles.note}>計時器在畫面開啟時運作最穩定。手機鎖屏或系統終止 App 時，不保證準時響鈴。</Text>
       <Text style={styles.fieldLabel}>Starry ID 中央會員：{memberStatus}</Text>
       <StarryAccountPanel />
+      <View style={{marginTop:12,gap:7}}>
+        <Button label="查看／恢復舊用途備份" onPress={()=>{void showLegacyBackups();}}/>
+        {legacyBackups!==null&&<Text style={styles.note}>{legacyBackups.length?'選擇備份用途後，再選「免費取代」即可恢復，不會直接扣電池。':'此會員目前沒有舊用途備份。'}</Text>}
+        {legacyBackups!==null&&legacyBackups.length>0&&<ScrollView style={{maxHeight:110}}>
+          {legacyBackups.map(p=><Pressable accessibilityRole="button" key={p.id}
+            onPress={()=>{
+              setSettings(false);setLegacyBackups(null);
+              setEditor({id:null,name:p.name,minutes:String(Math.floor(p.durationSeconds/60)),seconds:String(p.durationSeconds%60)});
+            }} style={{paddingVertical:7}}>
+            <Text style={styles.add}>{p.name} · {formatCountdown(p.durationSeconds)}</Text>
+          </Pressable>)}
+        </ScrollView>}
+      </View>
       <View style={styles.modalButtons}><Button label="取消" onPress={()=>setSettings(false)}/><Button label="套用" onPress={saveSettings} primary/></View>
     </View></View></Modal>
   </View>;
