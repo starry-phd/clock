@@ -30,6 +30,22 @@ function owner(env,userId){
  if(typeof env.CLOCK_OWNER_USER_IDS!=='string'||!env.CLOCK_OWNER_USER_IDS.trim())return false;
  return env.CLOCK_OWNER_USER_IDS.split(',').map(s=>s.trim()).filter(Boolean).includes(userId);
 }
+// Starry ID remains the authority for the Owner role. The Clock allowlist alone
+// must not retain pricing privileges after Starry ID revokes an Owner.
+async function requireCentralOwner(bearer,origin){
+ try{
+  const response=await fetch('https://id.starry.phd/v1/me',{
+   headers:{accept:'application/json',authorization:bearer},
+   signal:AbortSignal.timeout(8000)
+  });
+  if(!response.ok)return problem('OWNER_VERIFICATION_UNAVAILABLE','暫時無法確認管理員權限，請稍後再試',503,origin);
+  const member=await response.json();
+  if(member?.staff_role!=='owner')return problem('FORBIDDEN','中央會員權限不足，無法修改費率',403,origin);
+  return null;
+ }catch{
+  return problem('OWNER_VERIFICATION_UNAVAILABLE','暫時無法確認管理員權限，請稍後再試',503,origin);
+ }
+}
 async function dbOne(env,sql,...args){return env.DB.prepare(sql).bind(...args).first()}
 async function dbAll(env,sql,...args){return (await env.DB.prepare(sql).bind(...args).all()).results||[]}
 async function dbRun(env,sql,...args){return env.DB.prepare(sql).bind(...args).run()}
@@ -110,6 +126,8 @@ export async function handleClock(request,env,verify){
   }
   if(path==='/v1/admin/pricing'&&method==='PUT'){
     if(!owner(env,userId))return problem('FORBIDDEN','僅限 Clock Owner',403,origin);
+    const notOwner=await requireCentralOwner(auth,origin);
+    if(notOwner)return notOwner;
     const input=await body(request);
     if(typeof input.feature!=='string'||!Number.isInteger(input.units)||input.units<0||input.units>LIMIT||typeof input.enabled!=='boolean'||!Number.isInteger(input.version))return problem('INVALID_PRICE','價格必須是 0～30 顆的整數，並提供版本與開關',400,origin);
     const old=await price(env,input.feature);
@@ -135,11 +153,25 @@ export async function handleClock(request,env,verify){
     const input=await body(request);
     const {preset_id,request_id,name,duration_seconds,accepted_units}=input;
     if(!idValid(preset_id)||!idValid(request_id)||!timerName(name)||!Number.isInteger(duration_seconds)||duration_seconds<1||duration_seconds>86399||!Number.isInteger(accepted_units))return problem('INVALID_PRESET','計時器資料或請求編號不正確',400,origin);
+    const fingerprint=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode([preset_id,name.trim(),duration_seconds,accepted_units].join('|'))))).map(b=>b.toString(16).padStart(2,'0')).join('');
+    // A completed request is recoverable even if Owner changes X or disables
+    // charging afterward. Never reserve or commit new usage while the kill switch is off.
+    const prior=await dbOne(env,'SELECT * FROM clock_requests WHERE user_id=? AND request_id=?',userId,request_id);
+    if(prior){
+      if(prior.payload_hash!==fingerprint)return problem('IDEMPOTENCY_CONFLICT','請求編號不可用於不同計時器',409,origin);
+      if(prior.state==='committed'){
+        const recorded=await dbOne(env,"SELECT preset_id AS id,name,duration_seconds AS durationSeconds,paid_units AS paidUnits FROM clock_presets WHERE user_id=? AND request_id=?",userId,request_id);
+        return json({status:'created',preset:recorded,charged_units:prior.charge_units,replayed:true},200,origin);
+      }
+      if(prior.state==='failed')return problem('PREVIOUS_REQUEST_FAILED','先前新增失敗，請重新確認後再試',409,origin);
+      if(!prior.reservation_id)return problem('REQUEST_PENDING','新增處理中，請勿重複送出',409,origin);
+      if(env.BATTERY_CHARGES_ENABLED!=='true'||!env.STARRY_BATTERY_KEY)return problem('BATTERY_NOT_READY','電池扣量暫停，原請求尚未完成',503,origin);
+      return settle(env,userId,prior,origin);
+    }
     const p=await price(env);
     if(!p||!p.enabled)return problem('FEATURE_DISABLED','付費新增尚未開放，原有計時器仍可正常使用',409,origin);
     if(accepted_units!==p.units)return problem('PRICE_CHANGED','費率已更新，請重新確認',409,origin);
     if(!enabledFor(p,env))return problem('BATTERY_NOT_READY','中央 Battery 扣量服務尚未啟用',503,origin);
-    const fingerprint=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode([preset_id,name.trim(),duration_seconds,accepted_units].join('|'))))).map(b=>b.toString(16).padStart(2,'0')).join('');
     const reqCreate=await dbRun(env,"INSERT OR IGNORE INTO clock_requests(user_id,request_id,preset_id,payload_hash,state,charge_units) VALUES(?,?,?,?,?,?)",userId,request_id,preset_id,fingerprint,'pending',p.units);
     const existing=await dbOne(env,'SELECT * FROM clock_requests WHERE user_id=? AND request_id=?',userId,request_id);
     if(existing?.payload_hash!==fingerprint)return problem('IDEMPOTENCY_CONFLICT','請求編號不可用於不同計時器',409,origin);
@@ -161,10 +193,13 @@ export async function handleClock(request,env,verify){
     }
     let reservation;
     try{
-      reservation=await battery('/v1/battery/reservations',{task_type:TASK,units:p.units,idempotency_key:'clock:'+request_id},auth.slice(7),env);
+      reservation=await battery('/v1/battery/reservations',{task_type:TASK,task_label:p.label.slice(0,40),units:p.units,idempotency_key:'clock:'+request_id},auth.slice(7),env);
     }catch(error){
       await failed(env,userId,request_id,error.code||'BATTERY_UNAVAILABLE');
-      return problem(error.code==='BATTERY_INSUFFICIENT'?'BATTERY_INSUFFICIENT':'BATTERY_UNAVAILABLE',error.code==='BATTERY_INSUFFICIENT'?'本月電池不足，請等待下月恢復':'電池艙暫時無法扣量，未新增計時器',error.code==='BATTERY_INSUFFICIENT'?409:503,origin);
+      if(error.code==='BATTERY_INSUFFICIENT')return problem('BATTERY_INSUFFICIENT','本月電池不足，請等待下月恢復',409,origin);
+      if(error.code==='BATTERY_APP_CAP')return problem('BATTERY_APP_CAP','Clock 本月電池用量已達中央上限',409,origin);
+      if(error.code==='IDEMPOTENCY_CONFLICT')return problem('IDEMPOTENCY_CONFLICT','中央任務編號已被其他請求使用',409,origin);
+      return problem('BATTERY_UNAVAILABLE','電池艙暫時無法扣量，未新增計時器',503,origin);
     }
     if(!reservation?.reservation_id||reservation.task_type!==TASK||reservation.status!=='reserved'||reservation.units!==p.units||reservation.amount!==p.units){
       await releaseQuiet(reservation?.reservation_id,env);
