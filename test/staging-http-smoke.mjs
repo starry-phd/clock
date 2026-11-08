@@ -62,6 +62,8 @@ async function verify(name,base,cacheVersion){
  const registration=await fetchSafe(base+'/api/starry/status');
  assert.equal(registration.status,200);
  assert.equal((await registration.json()).app,'active');
+ return {body,csp,swText,sdk,freePresets:pricing.free_presets};
+}
 test('actual Cloudflare staging Web 2026-11-08.3: signed avatar, shown_name, SSO and Battery-off',async()=>{
  const stage=await verify('staging',endpoints.staging,'clock-web-v20261108-shown-name');
  for(const required of ['profile?.shown_name','memberAvatar','memberNumber','shareInvite','centralAvatar']){
