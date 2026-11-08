@@ -51,6 +51,12 @@ jobs:
           retention-days: 3
       - run: node --test test/worker-smoke.mjs
       - run: node --test test/starry-relay.test.mjs
+      - name: Build Clock API's official Starry SDK for Workers
+        run: |
+          node --experimental-transform-types tools/build_clock_api.mjs
+          node --check services/clock-api/dist/index.mjs
+          node --check services/clock-api/dist/routes.mjs
+          node --check services/clock-api/dist/starry-sdk.mjs
       - run: node --test test/clock-api.test.mjs
       - run: node --test test/platform-parity.test.mjs
       - run: node --test test/clock-member-v18.test.mjs
