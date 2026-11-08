@@ -64,15 +64,21 @@ async function verify(name,base,cacheVersion){
  assert.equal((await registration.json()).app,'active');
  return {body,csp,swText,sdk,freePresets:pricing.free_presets};
 }
-test('actual Cloudflare staging Web 2026-11-08.3: signed avatar, shown_name, SSO and Battery-off',async()=>{
- const stage=await verify('staging',endpoints.staging,'clock-web-v20261108-shown-name');
+let stage;
+test('Cloudflare staging Web 2026-11-08.3: avatar, shown_name, SSO and Battery disabled',async()=>{
+ stage=await verify('staging',endpoints.staging,'clock-web-v20261108-shown-name');
  for(const required of ['profile?.shown_name','memberAvatar','memberNumber','shareInvite','centralAvatar']){
-  assert.ok(stage.body.includes(required),'staging missing v2026-11-08.3 feature: '+required);
+  assert.ok(stage.body.includes(required),'staging missing 2026-11-08.3 feature: '+required);
  }
  assert.match(stage.csp,/img-src 'self' data: https:\/\/id\.starry\.phd/);
  console.log('CLOCK_STAGING_V20261108_HTTP_PASS',JSON.stringify({sdk:true,profile:true,charges:false,memberAuth:true}));
 });
-test('actual Cloudflare production remains v14 until staged release is approved',async()=>{
- await verify('production',endpoints.production,'clock-web-v1-14-web-sso');
- console.log('CLOCK_PRODUCTION_V14_HTTP_PASS',JSON.stringify({sdk:true,charges:false}));
+test('Cloudflare production Web 2026-11-08.3 exactly matches staging (read-only)',async()=>{
+ const live=await verify('production',endpoints.production,'clock-web-v20261108-shown-name');
+ const expected=stage??await verify('staging',endpoints.staging,'clock-web-v20261108-shown-name');
+ for(const part of ['body','csp','swText','sdk']){
+  assert.equal(live[part],expected[part],'production '+part+' does not match tested staging bundle');
+ }
+ assert.match(live.body,/profile\?\.shown_name/,'production missing official Starry shown_name');
+ console.log('CLOCK_PRODUCTION_V20261108_HTTP_PASS',JSON.stringify({sdk:true,profile:true,charges:false,sameBundle:true}));
 });
