@@ -51,6 +51,26 @@ jobs:
           retention-days: 3
       - run: node --test test/worker-smoke.mjs
       - run: node --test test/starry-relay.test.mjs
+      - name: Build Clock API's official Starry SDK for Workers
+        run: |
+          node --experimental-transform-types tools/build_clock_api.mjs
+          node --check services/clock-api/dist/index.mjs
+          node --check services/clock-api/dist/routes.mjs
+          node --check services/clock-api/dist/starry-sdk.mjs
+      # Temporary public source transport, only on this draft readiness branch.
+      # Remove before merging; this prints NO secrets and NO tokens.
+      - name: Temporary safe Clock API source bundle for staged rollout
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import gzip,base64,json,hashlib
+          from pathlib import Path
+          d=Path('services/clock-api/dist')
+          files={n:(d/n).read_text() for n in ['index.mjs','routes.mjs','starry-sdk.mjs']}
+          raw=json.dumps(files,sort_keys=True,separators=(',',':')).encode()
+          print('CLOCK_API_DEPLOY_SHA256='+hashlib.sha256(raw).hexdigest())
+          print('CLOCK_API_DEPLOY_GZIP_B64='+base64.b64encode(gzip.compress(raw,mtime=0)).decode())
+          PY
       - run: node --test test/clock-api.test.mjs
       - run: node --test test/platform-parity.test.mjs
       - run: node --test test/clock-member-v18.test.mjs
