@@ -8,16 +8,18 @@ const [native,web,guide,backend]=await Promise.all([
  read('AGENTS.md'),
  read('services/clock-api/src/index.mjs')
 ]);
-const officialName='繁星電池艙 Starry Battery';
-const officialDefinition='會員共用的消費用量月額度';
-test('native and web use the latest owner-approved Battery name and monthly consumption definition',()=>{
- for(const [platform,code] of [['Expo',native],['Web',web]]){
-  assert.ok(code.includes(officialName),platform+' is missing official name');
-  assert.ok(code.includes(officialDefinition),platform+' is missing owner definition');
-  assert.ok(code.includes('AI 與非 AI'),platform+' must recognize non-AI uses');
-  assert.ok(code.includes('每月 1 日'),platform+' must show monthly reset');
- }
- assert.ok(guide.includes(officialName)&&guide.includes(officialDefinition));
+test('2026-11-09.6: both platforms use official three-block Battery, Member, Passkey UI',async()=>{
+ const sdk=await read('apps/clock/src/auth/starry-client.ts');
+ assert.match(sdk,/export function starrySettingsBlocks\(/);
+ for(const title of ['繁星電池艙','我的中央會員','我的 Passkey'])
+  assert.ok(sdk.includes(title),'official SDK missing '+title);
+ assert.match(native,/starrySettingsBlocks\(\{/,'native must render official SDK content');
+ assert.match(web,/sdk\.starrySettingsBlocks\(data\)/,'web must render official SDK content');
+ assert.match(native,/openCentralPage\('battery'\)/);
+ assert.match(web,/settingsWebLink\('battery'\)/);
+ assert.match(web,/navigateClock\('\/admin'\)/);
+ assert.match(native,/router\.push\('\/admin'\)/);
+ assert.ok(guide.includes('繁星電池艙 Starry Battery'));
 });
 test('both platforms show the same authorized member balance fields without client-side deduction',()=>{
  assert.ok(native.includes("('GET','/v1/me/battery')"), 'native missing official SDK member Battery GET');
