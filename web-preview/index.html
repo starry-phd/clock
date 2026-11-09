@@ -114,7 +114,7 @@ function sound(final=false){if(muted)return;unlockAudio();if(!ctx||ctx.state!=='
 async function keepAwake(){try{if('wakeLock' in navigator&&status==='running'&&document.visibilityState==='visible'&&!wakeLock){wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>wakeLock=null)}}catch{}}
 function start(){unlockAudio();if(status==='running'){remainMs=Math.max(0,deadline-Date.now());deadline=null;status='paused'}else{if(status==='done'){reset()}deadline=Date.now()+remainMs;status='running';keepAwake()}update()}
 function tick(){if(status==='running'&&deadline!==null){const old=remainMs;remainMs=Math.max(0,deadline-Date.now());if(!warned&&lead>0&&remainMs>0&&remainMs<=lead*1000){warned=true;sound(false)}if(remainMs===0&&!completed){completed=true;status='done';deadline=null;sound(true)}if(Math.ceil(old/1000)!==Math.ceil(remainMs/1000)||status==='done')update()}if(mode==='clock')update()}
-function closeDialog(){dialog=null;$('overlay').classList.add('hidden');$('formError').textContent=''}
+function closeDialog(){const wasPreferences=dialog==='settings'&&location.pathname==='/preferences';dialog=null;$('overlay').classList.add('hidden');$('formError').textContent='';if(wasPreferences)navigateClock('/settings',{replace:true})}
 function openDialog(type){
  dialog=type;$('overlay').classList.remove('hidden');
  $('presetForm').classList.toggle('hidden',type!=='preset');
@@ -300,10 +300,14 @@ async function drawSdkSettings(){
  try{if(await sdk.restore())me=await sdk.me()}catch{}
  if(me&&!me.consent?.required){
   const results=await Promise.allSettled([sdk.request('GET','/v1/me/battery'),sdk.listPasskeys()]);
-  if(results[0].status==='fulfilled')battery=results[0].value;
+  if(results[0].status==='fulfilled'){
+   const response=results[0].value;
+   battery={balance:response.balance,quantum:response.quantum||{available:0}};
+  }
   if(results[1].status==='fulfilled')passkeys=results[1].value;
  }
  if(location.pathname!=='/settings')return;
+ webMember=me;
  const blocks=sdkModuleSettings({me,battery,passkeys});
  const target=$('sdkSettingsBlocks');target.replaceChildren();
  for(const block of blocks){
@@ -323,7 +327,7 @@ async function drawSdkSettings(){
    const control=document.createElement('button');control.className='icon-btn'+(button.inverse?' inverse':'')+(button.danger?' danger':'');
    control.textContent=(button.icon==='gear'?'⚙ ':'')+button.label;
    control.dataset.settingsAction=button.id;
-   control.onclick=()=>void settingsAction(button.id).catch(e=>{alertAccount(e.message);$('handoffStatus').textContent=String(e.message||'')});
+   control.onclick=()=>void settingsAction(button.id).catch(e=>{window.alert(String(e.message||'無法完成操作'))});
    actions.append(control);
   }
   section.append(actions);target.append(section);
@@ -379,7 +383,7 @@ $('loginNav').onclick=()=>{sessionStorage.setItem(CLOCK_RETURN_ROUTE,location.pa
 $('routeLoginGoogle').onclick=()=>$('loginGoogle').click();
 $('routeLoginApple').onclick=()=>$('loginApple').click();
 $('routeLoginPasskey').onclick=()=>$('loginPasskey').click();
-$('copyHandoff').onclick=()=>{if(latestHandoffText)navigator.clipboard.writeText(latestHandoffText).catch(()=>{})};
+$('copyHandoff').onclick=async()=>{if(!latestHandoffText)return;try{await navigator.clipboard.writeText(latestHandoffText)}catch{prompt('複製最新串接指令',latestHandoffText)}};
 window.addEventListener('popstate',renderClockRoute);
 /* Starry relay login: exactly https://clock.starry.phd/auth/done callback; fragment only. */
 const STAR='https://id.starry.phd',APPID='clock',REDIRECT='https://clock.starry.phd/auth/done';
