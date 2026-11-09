@@ -1,11 +1,12 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {Alert, AppState, Image, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View} from 'react-native';
+import {useRouter} from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import {updateProfile, StarryApiError} from '@clock/auth-contract';
 import appConfig from '../../app.json';
 import type {RelayProvider, StarryMe} from '@clock/auth-contract';
 import {loadMember, startStarryRelay, signOut, signOutEverywhere, clearSession, withAccess, officialStarryClient, onStarryAuthChange} from './session';
-import {StarryError} from './starry-client';
-import {OwnerPricingPanel} from './OwnerPricingPanel';
+import {StarryError, starrySettingsBlocks, type SettingsButtonId} from './starry-client';
 
 const api='https://id.starry.phd';
 // Signed Starry ID avatars are refreshed by /v1/me; the logical image cache key
@@ -19,20 +20,23 @@ function centralAvatar(raw:unknown):{uri:string;cacheKey:string}|null{
  }catch{return null;}
 }
 const C={fg:'#F7FAFF',bg:'#0B1220',line:'#35445E',panel:'#17263B',muted:'#A7BAD1',mint:'#80F4D6',danger:'#FF8E95'};
-function Btn({label,onPress,danger=false}:{label:string;onPress:()=>void;danger?:boolean}){
- return <Pressable accessibilityRole="button" onPress={onPress} style={[s.btn,danger&&{borderColor:C.danger}]}><Text style={[s.btnText,danger&&{color:C.danger}]}>{label}</Text></Pressable>;
+function Btn({label,onPress,danger=false,inverse=false}:{label:string;onPress:()=>void;danger?:boolean;inverse?:boolean}){
+ return <Pressable accessibilityRole="button" onPress={onPress} style={[s.btn,danger&&{borderColor:C.danger},inverse&&{backgroundColor:C.mint}]}><Text style={[s.btnText,danger&&{color:C.danger},inverse&&{color:C.bg}]}>{label}</Text></Pressable>;
 }
 async function confirmAction(title:string,message:string):Promise<boolean>{
  if(Platform.OS==='web')return typeof window!=='undefined' && window.confirm(title+'\n'+message);
  return await new Promise(resolve=>Alert.alert(title,message,[{text:'取消',style:'cancel',onPress:()=>resolve(false)},{text:'確認',style:'destructive',onPress:()=>resolve(true)}]));
 }
 export function StarryAccountPanel(){
+ const router=useRouter();
  const [me,setMe]=useState<StarryMe|null>(null);
  const [status,setStatus]=useState('正在檢查 Starry ID…');
  const [busy,setBusy]=useState(false);
  const [displayName,setDisplayName]=useState('');
  const [deletePhrase,setDeletePhrase]=useState('');
  const [battery,setBattery]=useState('');
+ const [batterySummary,setBatterySummary]=useState<{balance:{remaining:number};quantum:{available:number}}|null>(null);
+ const [confirmDelete,setConfirmDelete]=useState(false);
  const [avatarFailed,setAvatarFailed]=useState(false);
  const previousAvatarPath=useRef<string|null>(null);
  const [passkeys,setPasskeys]=useState<{id:string;name:string;created_at:number;last_used_at:number|null}[]>([]);
@@ -66,11 +70,12 @@ export function StarryAccountPanel(){
     }>('GET','/v1/me/battery');
     const bal=value.balance;
     const quantum=value.quantum;
+    setBatterySummary({balance:{remaining:bal.remaining},quantum:{available:quantum?.available??0}});
     setBattery(`🔋 ${bal.remaining} 顆普通電池（本月 ${bal.period}，額度 ${bal.allowance} 顆、已用 ${bal.used} 顆、預留 ${bal.reserved} 顆）`
       +(quantum?`\n⚛️ ${quantum.available} 顆量子電池（此 App 餘額 ${quantum.balance} 顆）`:''));
     // Free allowance is shared; Quantum is restricted to this App. This is read-only.
-   }catch{setBattery('額度暫時無法讀取');}
-  }else {setBattery('');setPasskeys([]);}
+   }catch{setBattery('額度暫時無法讀取');setBatterySummary(null);}
+  }else {setBattery('');setBatterySummary(null);setPasskeys([]);}
  },[]);
  useEffect(()=>{void refresh().catch(()=>setStatus('中央會員暫時無法連線'));},[refresh]);
  useEffect(()=>onStarryAuthChange(()=>{void refresh().catch(()=>{});}),[refresh]);
@@ -154,88 +159,77 @@ export function StarryAccountPanel(){
    }catch{setError('無法開啟系統分享功能');}
   })();
  }
+ async function openCentralPage(page:'battery'|'profile'|'referral'|'network'|'apps'){
+  // One-time, short-lived, member-authorized link: never reuse or log it.
+  const response=await officialStarryClient().request<{url:string}>('POST','/v1/me/web-link',{page});
+  if(!response?.url)throw Error('中央會員頁面暫時無法開啟');
+  if(Platform.OS==='web')await Linking.openURL(response.url);
+  else await WebBrowser.openBrowserAsync(response.url);
+ }
+ function onSettingsButton(id:SettingsButtonId){
+  if(id==='admin'){router.push('/admin');return;}
+  if(id==='public-profile'){openPublicProfile();return;}
+  if(id==='share-invite'){shareInvite();return;}
+  if(id==='support'){contactSupport();return;}
+  if(id==='delete-account'){setConfirmDelete(true);return;}
+  if(id==='sign-out-all'){void action(async()=>{await signOut();setMe(null);});return;}
+  if(id==='add-passkey'){createPasskey();return;}
+  if(id==='member-center'){void action(()=>openCentralPage('profile'));return;}
+  if(id==='battery-history'){void action(()=>openCentralPage('battery'));return;}
+ }
  function contactSupport(){
   const build=Platform.OS==='ios'?appConfig.expo.ios.buildNumber:Platform.OS==='android'?appConfig.expo.android.versionCode:'Web';
   const model=String((Platform.constants as unknown as Record<string,unknown>).Model||Platform.OS);
   const url=api+'/support?app_id=clock&app_version='+encodeURIComponent(appConfig.expo.version+' ('+build+')')+'&device='+encodeURIComponent(model);
   void Linking.openURL(url);
  }
+ const blocks=starrySettingsBlocks({
+  me:me as unknown as Parameters<typeof starrySettingsBlocks>[0]['me'],
+  battery:batterySummary,passkeys
+ });
  return <ScrollView style={s.root} keyboardShouldPersistTaps="handled">
-  <Text style={s.title}>Starry ID 中央會員</Text>
-  <Text style={s.info}>{status}</Text>
   {error?<Text style={s.error}>{error}</Text>:null}
   {!me?<View style={s.block}>
-    <Text style={s.info}>不需登入也能使用倒數計時。登入只由 Starry ID 中繼辦理；不會將 Apple、Google 密碼傳給 Clock。</Text>
     <Btn label="透過 Google 登入" onPress={()=>login('google')}/>
     <Btn label="透過 Apple 登入" onPress={()=>login('apple')}/>
-    <Btn label="使用 Passkey 通行密鑰登入" onPress={loginPasskey}/>
-    <Btn label="重新檢查登入狀態" onPress={()=>{void action(async()=>{});}}/>
-   </View>:<View style={s.block}>
-    <View style={s.memberHeader}>
+    <Btn label="使用 Passkey 登入" onPress={loginPasskey}/>
+   </View>:null}
+  {blocks.map(block=><View key={block.id} style={s.sdkBlock}>
+    <Text style={s.sdkTitle}>{block.title}</Text>
+    {block.avatar?<View style={s.memberHeader}>
       {signedAvatar&&!avatarFailed
-        ?<Image key={signedAvatar.cacheKey} source={{uri:signedAvatar.uri}} style={s.avatar}
+       ?<Image key={signedAvatar.cacheKey} source={{uri:signedAvatar.uri}} style={s.avatar}
           onError={()=>setAvatarFailed(true)} accessibilityLabel="Starry ID 會員頭像"/>
-        :<View style={s.avatarFallback} accessibilityLabel="Starry ID 會員頭像文字">
-          <Text style={s.avatarInitials}>{me.profile.initials||'?'}</Text>
-        </View>}
-      <View style={{flex:1}}>
-        <Text style={s.name}>{shownName}</Text>
-        <Text style={s.info}>會員編號：{memberNo||'尚未取得'}</Text>
-      </View>
-    </View>
-    {memberNo&&<>
-      <Btn label="查看我的公開會員頁" onPress={openPublicProfile}/>
-      <Btn label="分享我的邀請連結" onPress={shareInvite}/>
-    </>}
-    <Text style={s.info}>帳號狀態：{me.status}</Text>
-    {me.status==='pending_deletion'?<>
-      <Text style={s.error}>此帳號仍顯示舊版刪除申請狀態，請聯絡 Starry ID 客服確認。</Text>
-    </>:<>
-      {me.consent.required?<View style={s.warning}>
-       <Text style={s.warnText}>必須先同意最新服務條款與隱私權政策。</Text>
-       <Btn label="閱讀服務條款" onPress={()=>{void Linking.openURL(api+'/terms');}}/>
-       <Btn label="閱讀隱私權政策" onPress={()=>{void Linking.openURL(api+'/privacy');}}/>
-       <Btn label="我已閱讀並同意最新條款" onPress={()=>{void agree();}}/>
-      </View>:null}
-      {!me.consent.required?<View style={s.block}>
-        <Text style={s.info}>姓名（主要顯示名稱依 Starry ID 帳號中心設定）</Text>
-        <TextInput style={s.input} value={displayName} onChangeText={setDisplayName} maxLength={50} placeholder="顯示名稱" placeholderTextColor={C.muted}/>
-        <Btn label="儲存會員姓名" onPress={()=>{void saveName();}}/>
-        <Btn label="會員資料／頭像管理" onPress={()=>{void Linking.openURL(api+'/account');}}/>
-        <Text style={s.info}>其他登入方式與頭像可從 Starry ID 帳號中心管理，不會在 Clock 建立獨立會員資料。</Text>
-        <Btn label="綁定 Apple 登入方式" onPress={()=>{void action(async()=>{await startStarryRelay('apple','link');});}}/>
-        <Btn label="綁定 Google 登入方式" onPress={()=>{void action(async()=>{await startStarryRelay('google','link');});}}/>
-        <View style={s.passkeyPanel}>
-          <Text style={s.name}>Passkey 通行密鑰</Text>
-          <Text style={s.info}>透過裝置指紋、Face ID 或螢幕鎖定登入 Starry ID。需要已安裝原生版本及正確的網域關聯。</Text>
-          <Btn label="新增通行密鑰" onPress={createPasskey}/>
-          <Btn label="重新整理通行密鑰" onPress={()=>{void action(async()=>{});}}/>
-          {passkeys.length===0?<Text style={s.info}>尚未註冊任何通行密鑰</Text>:
-           passkeys.map(p=><View key={p.id} style={s.passkeyRow}>
-            <Text style={[s.info,{flex:1}]} numberOfLines={2}>{p.name||'通行密鑰'}</Text>
-            <Btn label="移除" onPress={()=>removePasskey(p.id)} danger/>
-           </View>)}
-        </View>
-        <Text style={s.info}>🔋 繁星電池艙 Starry Battery｜會員共用的消費用量月額度</Text>
-        <Text style={s.info}>{battery||'尚未取得'}</Text>
-        <OwnerPricingPanel userId={me.user_id}/>
-        <Text style={s.info}>🔋 月額度跨已授權 Starry Apps 共用，適用核准的 AI 與非 AI 服務；每月 1 日（台灣時間）恢復。此頁僅查詢，不會扣額。</Text>
-      </View>:null}
-      <Btn label={Platform.OS==='ios'?'登出所有繁星 App':'登出 Clock（Android 共用登入待驗證）'} onPress={()=>{void action(async()=>{await signOut();setMe(null);});}}/>
-      <Btn label="登出所有裝置" onPress={()=>{void action(async()=>{if(await confirmAction('登出所有裝置','這會使全部 Starry ID 裝置的登入狀態失效。')){await signOutEverywhere();setMe(null);}});}}/>
-      <Text style={s.error}>永久刪除前，請先輸入 DELETE；無法恢復，也不會自動取消商店訂閱。</Text>
+       :<View style={s.avatarFallback}><Text style={s.avatarInitials}>{block.avatar.initials||'?'}</Text></View>}
+      <Text style={s.name}>{block.name}</Text>
+     </View>:null}
+    {block.lines.map((line,i)=><Text key={String(i)} style={s.info}>{line}</Text>)}
+    {block.passkeys?.map(item=><View key={item.id} style={s.passkeyRow}>
+      <Text style={[s.info,{flex:1}]}>{item.name}</Text>
+      <Btn label={item.removeLabel} danger onPress={()=>removePasskey(item.id)}/>
+    </View>)}
+    {block.buttons.map(button=><Btn key={button.id} label={(button.icon==='gear'?'⚙ ':'')+button.label}
+      danger={button.danger} inverse={button.inverse}
+      onPress={()=>onSettingsButton(button.id)}/>)}
+    {block.id==='member'&&me?.consent.required?<View style={s.warning}>
+      <Btn label="閱讀服務條款" onPress={()=>{void Linking.openURL(api+'/terms')}}/>
+      <Btn label="閱讀隱私權政策" onPress={()=>{void Linking.openURL(api+'/privacy')}}/>
+      <Btn label="我已閱讀並同意最新條款" onPress={()=>{void agree()}}/>
+     </View>:null}
+    {block.id==='member'&&confirmDelete?<View style={s.warning}>
       <TextInput style={s.input} value={deletePhrase} onChangeText={setDeletePhrase}
-        placeholder="輸入 DELETE 確認" placeholderTextColor={C.muted} autoCapitalize="characters"/>
-      <Btn danger label="永久刪除 Starry 會員帳號" onPress={()=>{void deleteSelf();}}/>
-    </>}
-   </View>}
+       placeholder="輸入 DELETE 確認" placeholderTextColor={C.muted} autoCapitalize="characters"/>
+      <Btn danger label="確認永久刪除" onPress={()=>{void deleteSelf()}}/>
+      <Btn label="取消" onPress={()=>setConfirmDelete(false)}/>
+     </View>:null}
+   </View>)}
   {busy?<Text style={s.info}>正在處理…</Text>:null}
-  <Btn label="聯絡客服" onPress={contactSupport}/>
-  <Btn label="開啟 Starry ID 網頁帳號中心" onPress={()=>{void Linking.openURL(api+'/account');}}/>
  </ScrollView>;
 }
 const s=StyleSheet.create({
  root:{maxHeight:480},title:{color:C.fg,fontSize:18,fontWeight:'800',marginBottom:10},
+ sdkBlock:{gap:9,padding:13,borderWidth:1,borderColor:C.line,borderRadius:14,backgroundColor:C.panel,marginBottom:12},
+ sdkTitle:{fontSize:19,fontWeight:'800',color:C.fg,marginBottom:4},
  block:{gap:9,marginVertical:9},info:{color:C.muted,fontSize:13,lineHeight:20,flexWrap:'wrap'},
  name:{color:C.mint,fontWeight:'700',fontSize:20},error:{color:C.danger,fontSize:14,marginVertical:8},
  btn:{padding:10,borderWidth:1,borderColor:C.line,backgroundColor:C.bg,borderRadius:9},

@@ -45,13 +45,19 @@ export default { async fetch(request, env){
       return Response.json({app:data?.app_id==='clock'&&data.status==='active'?'active':r.status===404?'pending':'unavailable',http_status:r.status},{headers:{'Cache-Control':'no-store'}});
     } catch {return Response.json({app:'unavailable'},{headers:{'Cache-Control':'no-store'}});}
   }
-  const key=(path==='/index.html'||path==='/auth/done')?'/':path;
+  const routePages=new Set(['/settings','/admin','/login','/preferences','/auth/done']);
+  const key=(path==='/index.html'||routePages.has(path))?'/':path;
   const assets=await getAssets();
-  if (!Object.prototype.hasOwnProperty.call(assets,key)) return new Response('Not found',{status:404});
+  if (!Object.prototype.hasOwnProperty.call(assets,key)) {
+    // True 404 for unknown paths and missing files; app assets are never rewritten to HTML.
+    if(request.method!=='GET'&&request.method!=='HEAD')return new Response('Not found',{status:404});
+    return new Response('<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><title>404</title><body><h1>404</h1><a href="/">回首頁</a></body></html>',{status:404,headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
+  }
   const types={'/':'text/html; charset=utf-8','/sw.js':'text/javascript; charset=utf-8','/starry-client.js':'text/javascript; charset=utf-8','/manifest.webmanifest':'application/manifest+json; charset=utf-8','/icon.svg':'image/svg+xml; charset=utf-8'};
   const headers={'Content-Type':types[key],'Cache-Control':'no-cache','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Permissions-Policy':'camera=(), microphone=(), geolocation=()'};
   if(key==='/') headers['Content-Security-Policy']=CSP;
   if(path==='/auth/done') headers['Cache-Control']='no-store';
+  if(key==='/'&&routePages.has(path)) headers['Cache-Control']='no-store';
   if(key==='/sw.js') headers['Service-Worker-Allowed']='/';
   return new Response(assets[key],{headers});
 }};

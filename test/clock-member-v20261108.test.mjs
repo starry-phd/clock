@@ -21,7 +21,7 @@ test('2026-11-08.3: official OpenAPI defines central shown_name for member and d
 
 test('2026-11-08.3: both platforms render server-chosen shown_name; fallback is central initials, not real name',()=>{
  assert.match(native,/const shownName=me\?\.profile\?\.shown_name\?\?me\?\.profile\?\.initials\?\?'\?'/);
- assert.match(native,/<Text style=\{s\.name\}>\{shownName\}<\/Text>/);
+ assert.match(native,/<Text style=\{s\.name\}>\{block\.name\}<\/Text>/,'native must use SDK chosen shown_name');
  assert.match(web,/member\.profile\?\.shown_name\?\?member\.profile\?\.initials\?\?'\?'/);
  assert.doesNotMatch(native,/<Text style=\{s\.name\}>\{me\.profile\.display_name/);
  assert.doesNotMatch(web,/\$\('accountUser'\)\.textContent=member\?\(member\.profile\?\.display_name/);

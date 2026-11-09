@@ -17,11 +17,12 @@ body.fullscreen #app{max-width:none}body.theater header,body.theater .mode-toggl
 @media (min-width:1100px){.digits{font-size:min(23vw,34vh,345px)}.digits.clock{font-size:min(13vw,25vh,230px)}}
 @media (max-height:500px) and (orientation:landscape){#app{padding:7px 18px}.mode-toggle{margin:4px auto}.hero{min-height:100px;padding:0}.digits{font-size:min(21vw,34vh,210px)}.digits.clock{font-size:min(14vw,32vh,170px)}.purpose{margin:3px;font-size:18px}.unit{margin:0}.track{margin-top:7px;height:5px}.controls{margin-bottom:7px}.large-btn{padding:7px}.presets{padding-bottom:0}.preset{padding:7px 11px}.preset .duration{font-size:17px;margin:0}.footer{margin-top:4px}}
 @media (prefers-reduced-motion: reduce){*,*:before,*:after{transition:none!important;animation:none!important}}
+ .clock-route{max-width:720px;margin:30px auto 0;padding:0 14px 40px}.clock-route-block{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;margin:0 0 15px}.clock-route-block h2{margin:0 0 15px}.clock-route-line{margin:10px 0;color:var(--muted)}.clock-route-actions{display:grid;gap:10px;margin:13px 0}.clock-route-actions button{width:100%;text-align:center}.clock-route-actions button.inverse{background:var(--accent);color:var(--bg);border-color:var(--accent)}.clock-route-actions button.danger{margin:0;border:1px solid var(--red);color:var(--red);background:var(--panel)}.clock-route-avatar{height:60px;width:60px;border-radius:50%;object-fit:cover;border:1px solid var(--line)}.clock-route-initials{height:60px;width:60px;border-radius:50%;background:var(--bg);display:grid;place-items:center;font-size:22px}.clock-route-nav{display:flex;gap:8px;justify-content:space-between;align-items:center;margin-bottom:16px}
 </style>
 </head>
 <body>
 <main id="app">
-<header><div class="brand">CLOCK</div><div class="header-actions"><button id="sound" class="icon-btn" title="切換響鈴">聲音：開</button><button id="full" class="icon-btn">⛶ 全螢幕</button><button id="settings" class="icon-btn">⚙ 設定</button></div></header>
+<header><div class="brand">CLOCK</div><div class="header-actions"><button id="sound" class="icon-btn" title="切換響鈴">聲音：開</button><button id="full" class="icon-btn">⛶ 全螢幕</button><button id="loginNav" class="icon-btn hidden">登入</button><button id="settings" class="icon-btn">⚙ 設定</button></div></header>
 <p id="centralNotice" class="note hidden" role="status" style="border:1px solid var(--line);padding:10px;border-radius:10px;color:var(--alert)"></p>
 <div class="mode-toggle" role="tablist" aria-label="顯示模式"><button id="timerTab" class="tab active" role="tab" aria-selected="true">倒數計時</button><button id="clockTab" class="tab" role="tab" aria-selected="false">時鐘</button></div>
 <section class="hero" aria-live="off"><div class="purpose" id="purpose">休息時間</div><div id="digits" class="digits" role="timer" aria-label="剩餘時間">05:00</div><div class="unit" id="unit">分 : 秒</div><div class="track" id="track"><div id="fill" class="fill"></div></div></section>
@@ -29,6 +30,20 @@ body.fullscreen #app{max-width:none}body.theater header,body.theater .mode-toggl
 <p id="clockHint" class="hint hidden">超大時鐘 · 顯示時分秒</p>
 <div class="footer"><span id="summary">結束前 10 秒提醒 · 響鈴開啟 · 可離線使用</span><div id="notice" style="font-size:11px;margin-top:4px">開啟畫面時可準時提醒；鎖屏、背景分頁或系統省電可能延遲鈴聲</div></div>
 </main>
+<section id="clockRoutePage" class="clock-route hidden">
+ <div class="clock-route-nav"><button id="routeHome" class="icon-btn">返回計時器</button><strong id="routeTitle"></strong><button id="routeLoginNav" class="icon-btn hidden">登入</button></div>
+ <div id="routeSettings" class="hidden"><div id="sdkSettingsBlocks"></div><div class="clock-route-block"><button id="timerSettingsNav" class="icon-btn" style="width:100%">計時器設定</button></div></div>
+ <div id="routeAdmin" class="hidden">
+  <div class="clock-route-block" id="handoffCard"><strong>串接指令</strong><p id="handoffStatus"></p><p>更新時請 AI 只補差異，不要整份重做</p><button id="copyHandoff" class="icon-btn hidden">複製最新串接指令</button></div>
+  <div id="routeOwnerPricing"></div>
+ </div>
+ <div id="routeLogin" class="hidden clock-route-block">
+  <button id="routeLoginGoogle" class="icon-btn" style="display:block;width:100%;margin:8px 0">使用 Google 登入</button>
+  <button id="routeLoginApple" class="icon-btn" style="display:block;width:100%;margin:8px 0">使用 Apple 登入</button>
+  <button id="routeLoginPasskey" class="icon-btn" style="display:block;width:100%;margin:8px 0">使用 Passkey 登入</button>
+ </div>
+ <div id="routeMissing" class="hidden clock-route-block"><h2>404</h2><button id="routeMissingHome" class="icon-btn">回首頁</button></div>
+</section>
 <div id="appGate" class="hidden" role="alertdialog" aria-modal="true" aria-label="Clock 服務狀態" style="position:fixed;inset:0;z-index:50;background:var(--bg);padding:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center">
  <h2>Clock 暫時無法使用</h2><p id="appGateMessage" role="alert">正在檢查服務狀態</p><p class="note">請等候業主恢復服務或更新 App；不會反覆自動重試。</p>
  <button id="appGateRetry" class="large-btn" style="max-width:230px">重新檢查</button>
@@ -43,7 +58,7 @@ body.fullscreen #app{max-width:none}body.theater header,body.theater .mode-toggl
 <select id="freeReplaceTarget" class="textinput" aria-label="選擇要取代的既有計時器"><option value="">請選擇一組用途</option></select>
 <button type="button" id="freeReplaceSave" class="large-btn" style="margin-top:10px;width:100%">免費取代並儲存</button>
 </div></div>
-<div id="settingsForm" class="hidden"><label class="label" for="lead">結束前幾秒響鈴（0～120）</label><input id="lead" class="textinput" inputmode="numeric" type="number" min="0" max="120" value="10"><p class="note">提前提醒只響一次；歸零時會再響鈴。設定 0 代表只在歸零響鈴。</p><div class="switch"><span>提示音效</span><button id="soundToggle">開啟</button></div><div style="margin:12px 0"><button type="button" id="legacyRestore" class="icon-btn" style="width:100%">查看／恢復舊用途備份</button><p class="note">備份不會自行覆寫計時器。選取舊用途後，可以免費取代既有用途。</p><div id="legacyBackupList" style="display:grid;gap:8px;max-height:160px;overflow:auto"></div></div><div class="identity"><strong>Starry ID 中央會員</strong><p id="memberStatus">正在檢查中央登記…</p><div id="memberIdentity" style="display:flex;align-items:center;gap:12px;margin:10px 0">
+<div id="settingsForm" class="hidden"><label class="label" for="lead">結束前幾秒響鈴（0～120）</label><input id="lead" class="textinput" inputmode="numeric" type="number" min="0" max="120" value="10"><p class="note">提前提醒只響一次；歸零時會再響鈴。設定 0 代表只在歸零響鈴。</p><div class="switch"><span>提示音效</span><button id="soundToggle">開啟</button></div><div style="margin:12px 0"><button type="button" id="legacyRestore" class="icon-btn" style="width:100%">查看／恢復舊用途備份</button><p class="note">備份不會自行覆寫計時器。選取舊用途後，可以免費取代既有用途。</p><div id="legacyBackupList" style="display:grid;gap:8px;max-height:160px;overflow:auto"></div></div><div class="identity hidden"><strong>Starry ID 中央會員</strong><p id="memberStatus">正在檢查中央登記…</p><div id="memberIdentity" style="display:flex;align-items:center;gap:12px;margin:10px 0">
  <div id="memberAvatar" role="img" aria-label="Starry ID 會員頭像" style="width:62px;height:62px;flex:0 0 62px;border-radius:50%;border:1px solid var(--line);background:var(--panel,#16233b);display:flex;align-items:center;justify-content:center;overflow:hidden"><span id="memberInitials" style="font-weight:800;font-size:22px">?</span></div>
  <div style="min-width:0"><p id="accountUser">未登入</p><p id="memberNumber" class="note"></p></div>
 </div>
@@ -99,7 +114,7 @@ function sound(final=false){if(muted)return;unlockAudio();if(!ctx||ctx.state!=='
 async function keepAwake(){try{if('wakeLock' in navigator&&status==='running'&&document.visibilityState==='visible'&&!wakeLock){wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>wakeLock=null)}}catch{}}
 function start(){unlockAudio();if(status==='running'){remainMs=Math.max(0,deadline-Date.now());deadline=null;status='paused'}else{if(status==='done'){reset()}deadline=Date.now()+remainMs;status='running';keepAwake()}update()}
 function tick(){if(status==='running'&&deadline!==null){const old=remainMs;remainMs=Math.max(0,deadline-Date.now());if(!warned&&lead>0&&remainMs>0&&remainMs<=lead*1000){warned=true;sound(false)}if(remainMs===0&&!completed){completed=true;status='done';deadline=null;sound(true)}if(Math.ceil(old/1000)!==Math.ceil(remainMs/1000)||status==='done')update()}if(mode==='clock')update()}
-function closeDialog(){dialog=null;$('overlay').classList.add('hidden');$('formError').textContent=''}
+function closeDialog(){const wasPreferences=dialog==='settings'&&location.pathname==='/preferences';dialog=null;$('overlay').classList.add('hidden');$('formError').textContent='';if(wasPreferences)navigateClock('/settings',{replace:true})}
 function openDialog(type){
  dialog=type;$('overlay').classList.remove('hidden');
  $('presetForm').classList.toggle('hidden',type!=='preset');
@@ -116,7 +131,7 @@ function openDialog(type){
    const option=document.createElement('option');option.value=p.id;option.textContent=p.name+'（'+fmt(p.durationSeconds)+'）';select.append(option);
   }
  }
- if(type==='settings'){$('lead').value=String(lead);checkMember();void refreshVisibleMember()}
+ if(type==='settings'){$('lead').value=String(lead)}
  else{$('presetName').value=editor?.name||'';$('minutes').value=String(editor?Math.floor(editor.durationSeconds/60):5);$('seconds').value=String(editor?editor.durationSeconds%60:0)}
  setTimeout(()=>$(type==='settings'?'lead':'presetName').focus(),60);
 }
@@ -218,7 +233,7 @@ function showLegacyBackups(){
 $('legacyRestore').addEventListener('click',showLegacyBackups);
 function full(){if(document.fullscreenElement){document.exitFullscreen?.().catch(()=>{});document.body.classList.remove('fullscreen');return}if(document.documentElement.requestFullscreen){document.documentElement.requestFullscreen().then(()=>document.body.classList.add('fullscreen')).catch(()=>{theater=!theater;document.body.classList.toggle('theater',theater)})}else{theater=!theater;document.body.classList.toggle('theater',theater)} }
 async function checkMember(){const status=$('memberStatus');status.textContent='正在檢查 Clock App 登記…';try{const res=await fetch('/api/starry/status',{cache:'no-store'});const data=await res.json();status.textContent=data.app==='active'?'中央會員 App 已登記（尚需完成登入驗證）':data.app==='pending'?'尚未登記 clock；計時功能可正常使用':'中央會員暫時無法驗證；計時功能正常'}catch{status.textContent='會員 API 未連線；計時功能正常'}}
-$('start').addEventListener('click',start);$('reset').addEventListener('click',reset);$('timerTab').addEventListener('click',()=>{mode='timer';drawMode()});$('clockTab').addEventListener('click',()=>{mode='clock';drawMode()});$('sound').addEventListener('click',()=>{muted=!muted;unlockAudio();summary();persist()});$('soundToggle').addEventListener('click',()=>{muted=!muted;summary();persist()});$('add').addEventListener('click',()=>{editor=null;openDialog('preset')});$('settings').addEventListener('click',()=>openDialog('settings'));$('full').addEventListener('click',full);$('exitTheater').addEventListener('click',()=>{theater=false;document.body.classList.remove('theater')});$('cancel').addEventListener('click',closeDialog);$('save').addEventListener('click',save);$('freeReplaceSave').addEventListener('click',replaceFree);$('delete').addEventListener('click',async()=>{
+$('start').addEventListener('click',start);$('reset').addEventListener('click',reset);$('timerTab').addEventListener('click',()=>{mode='timer';drawMode()});$('clockTab').addEventListener('click',()=>{mode='clock';drawMode()});$('sound').addEventListener('click',()=>{muted=!muted;unlockAudio();summary();persist()});$('soundToggle').addEventListener('click',()=>{muted=!muted;summary();persist()});$('add').addEventListener('click',()=>{editor=null;openDialog('preset')});$('settings').addEventListener('click',()=>navigateClock('/settings'));$('full').addEventListener('click',full);$('exitTheater').addEventListener('click',()=>{theater=false;document.body.classList.remove('theater')});$('cancel').addEventListener('click',closeDialog);$('save').addEventListener('click',save);$('freeReplaceSave').addEventListener('click',replaceFree);$('delete').addEventListener('click',async()=>{
 if(!editor||presets.length<=1||saveBusy)return;
 saveBusy=true;
 try{
@@ -236,8 +251,142 @@ try{
  reset();persist();renderPresets();closeDialog();
 }catch(e){$('formError').textContent=e.message||'無法刪除';}
 finally{saveBusy=false}
-});$('overlay').addEventListener('click',e=>{if(e.target===$('overlay'))closeDialog()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDialog();if(e.code==='Space'&&!dialog&&mode==='timer'&&e.target===document.body){e.preventDefault();start()}});document.addEventListener('fullscreenchange',()=>document.body.classList.toggle('fullscreen',Boolean(document.fullscreenElement)));document.addEventListener('visibilitychange',()=>{tick();if(document.visibilityState==='visible'){keepAwake();void checkAppGate();void refreshVisibleMember();}});
+});$('overlay').addEventListener('click',e=>{if(e.target===$('overlay'))closeDialog()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDialog();if(e.code==='Space'&&!dialog&&mode==='timer'&&e.target===document.body){e.preventDefault();start()}});document.addEventListener('fullscreenchange',()=>document.body.classList.toggle('fullscreen',Boolean(document.fullscreenElement)));document.addEventListener('visibilitychange',()=>{tick();if(document.visibilityState==='visible'){keepAwake();void checkAppGate();void refreshVisibleMember();if(location.pathname==='/settings')void drawSdkSettings();if(location.pathname==='/admin')void renderClockAdmin();}});
 
+// Route views are navigation only: timer, authentication and Owner API remain untouched.
+const CLOCK_HANDOFF_VERSION='2026-11-09.6';
+const CLOCK_RETURN_ROUTE='clock:route:return:v6';
+let latestHandoffText='';
+const ROUTE_PATHS=new Set(['/','/settings','/admin','/login','/preferences','/auth/done']);
+function navigateClock(path,{replace=false}={}){
+ if(!ROUTE_PATHS.has(path))path='/404';
+ if(replace)history.replaceState(null,'',path);else if(location.pathname!==path)history.pushState(null,'',path);
+ renderClockRoute();
+}
+function renderClockRoute(){
+ const path=location.pathname;
+ const home=path==='/'||path==='/auth/done'||path==='/preferences';
+ $('app').classList.toggle('hidden',!home);
+ $('clockRoutePage').classList.toggle('hidden',home);
+ $('routeLoginNav').classList.toggle('hidden',Boolean(webMember)||path==='/login');
+ for(const id of ['routeSettings','routeAdmin','routeLogin','routeMissing'])$(id).classList.add('hidden');
+ if(path==='/settings'){
+  $('routeTitle').textContent='設定';$('routeSettings').classList.remove('hidden');
+  void drawSdkSettings();
+ }else if(path==='/admin'){
+  $('routeTitle').textContent='Admin 專區';$('routeAdmin').classList.remove('hidden');
+  void renderClockAdmin();
+ }else if(path==='/login'){
+  $('routeTitle').textContent='登入';$('routeLogin').classList.remove('hidden');
+  $('routeLoginPasskey').classList.toggle('hidden',!webPasskeysSupported());
+ }else if(path==='/preferences'){
+  if(dialog!=='settings')openDialog('settings');
+ }else if(!home){
+  $('routeTitle').textContent='404';$('routeMissing').classList.remove('hidden');
+ }
+ if(path!=='/preferences'&&dialog==='settings')closeDialog();
+}
+function settingsAvatar(block){
+ const root=document.createElement('div');root.style.cssText='display:flex;align-items:center;gap:12px;margin:10px 0';
+ const pic=block.avatar?.url?centralAvatar(block.avatar.url):null;
+ const fallback=()=>{const bubble=document.createElement('span');bubble.className='clock-route-initials';bubble.textContent=block.avatar?.initials||'?';root.prepend(bubble)};
+ if(pic){const img=document.createElement('img');img.className='clock-route-avatar';img.alt='Starry ID 會員頭像';img.referrerPolicy='no-referrer';img.onerror=()=>{img.remove();fallback()};img.src=pic.uri;root.append(img)}else fallback();
+ const title=document.createElement('strong');title.textContent=block.name||'';root.append(title);
+ return root;
+}
+async function drawSdkSettings(){
+ if(location.pathname!=='/settings')return;
+ const sdk=requireWebSdk();
+ let me=null,battery=null,passkeys=[];
+ try{if(await sdk.restore())me=await sdk.me()}catch{}
+ if(me&&!me.consent?.required){
+  const results=await Promise.allSettled([sdk.request('GET','/v1/me/battery'),sdk.listPasskeys()]);
+  if(results[0].status==='fulfilled'){
+   const response=results[0].value;
+   battery={balance:response.balance,quantum:response.quantum||{available:0}};
+  }
+  if(results[1].status==='fulfilled')passkeys=results[1].value;
+ }
+ if(location.pathname!=='/settings')return;
+ webMember=me;
+ const blocks=sdkModuleSettings({me,battery,passkeys});
+ const target=$('sdkSettingsBlocks');target.replaceChildren();
+ for(const block of blocks){
+  const section=document.createElement('section');section.className='clock-route-block';
+  const heading=document.createElement('h2');heading.textContent=block.title;section.append(heading);
+  if(block.avatar)section.append(settingsAvatar(block));
+  for(const line of block.lines){const p=document.createElement('p');p.className='clock-route-line';p.textContent=line;section.append(p)}
+  if(block.passkeys)for(const item of block.passkeys){
+   const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:8px';
+   const label=document.createElement('span');label.textContent=item.name;
+   const remove=document.createElement('button');remove.className='icon-btn';remove.textContent=item.removeLabel;
+   remove.onclick=async()=>{if(!confirm('確定移除此 Passkey？'))return;try{await sdk.removePasskey(item.id);await drawSdkSettings()}catch(e){alertAccount(e.message)}};
+   row.append(label,remove);section.append(row);
+  }
+  const actions=document.createElement('div');actions.className='clock-route-actions';
+  for(const button of block.buttons){
+   const control=document.createElement('button');control.className='icon-btn'+(button.inverse?' inverse':'')+(button.danger?' danger':'');
+   control.textContent=(button.icon==='gear'?'⚙ ':'')+button.label;
+   control.dataset.settingsAction=button.id;
+   control.onclick=()=>void settingsAction(button.id).catch(e=>{window.alert(String(e.message||'無法完成操作'))});
+   actions.append(control);
+  }
+  section.append(actions);target.append(section);
+ }
+ // The three SDK-defined blocks precede all Clock-specific preferences.
+}
+function sdkModuleSettings(data){
+ if(typeof sdk?.starrySettingsBlocks!=='function')throw Error('Starry ID 設定元件尚未更新');
+ return sdk.starrySettingsBlocks(data);
+}
+async function settingsWebLink(page){
+ const client=requireWebSdk();
+ const link=await client.request('POST','/v1/me/web-link',{page});
+ if(!link?.url)throw Error('中央會員頁面暫時無法開啟');
+ window.open(link.url,'_blank','noopener,noreferrer');
+}
+async function settingsAction(id){
+ if(!webMember&&id!=='support')throw Error('請先從上方登入入口登入 Starry ID');
+ if(id==='battery-history')return settingsWebLink('battery');
+ if(id==='member-center')return settingsWebLink('profile');
+ if(id==='public-profile')return $('publicProfile').click();
+ if(id==='share-invite')return $('shareInvite').click();
+ if(id==='support')return $('contactSupport').click();
+ if(id==='admin')return navigateClock('/admin');
+ if(id==='sign-out-all')return $('logoutMember').click();
+ if(id==='delete-account')return $('deleteMember').click();
+ if(id==='add-passkey'){await createWebPasskey();return drawSdkSettings()}
+}
+async function renderClockAdmin(){
+ if(location.pathname!=='/admin')return;
+ const s=$('handoffStatus');
+ let me=null;try{me=await requireWebSdk().me()}catch{}
+ if(location.pathname!=='/admin')return;
+ if(me?.staff_role!=='owner'){
+  navigateClock('/settings',{replace:true});return;
+ }
+ // No app admin function is left on member settings: existing Owner UI is moved.
+ $('routeOwnerPricing').append($('ownerPricing'));
+ await loadOwnerPrices();
+ latestHandoffText='';
+ try{
+  const handoff=await requireWebSdk().getLatestHandoff(CLOCK_HANDOFF_VERSION);
+  if(location.pathname!=='/admin')return;
+  s.textContent='目前採用版本：'+CLOCK_HANDOFF_VERSION+'｜中央最新版本：'+handoff.version+'｜'+(handoff.up_to_date?'已是最新':'有新版');
+  latestHandoffText=handoff.text||'';
+  $('copyHandoff').classList.toggle('hidden',handoff.up_to_date||!latestHandoffText);
+ }catch(e){s.textContent='串接指令暫時無法查詢'}
+}
+$('routeHome').onclick=()=>navigateClock('/');
+$('routeMissingHome').onclick=()=>navigateClock('/');
+$('timerSettingsNav').onclick=()=>navigateClock('/preferences');
+$('loginNav').onclick=()=>{sessionStorage.setItem(CLOCK_RETURN_ROUTE,location.pathname);navigateClock('/login')};
+$('routeLoginNav').onclick=()=>{sessionStorage.setItem(CLOCK_RETURN_ROUTE,location.pathname);navigateClock('/login')};
+$('routeLoginGoogle').onclick=()=>$('loginGoogle').click();
+$('routeLoginApple').onclick=()=>$('loginApple').click();
+$('routeLoginPasskey').onclick=()=>$('loginPasskey').click();
+$('copyHandoff').onclick=async()=>{if(!latestHandoffText)return;try{await navigator.clipboard.writeText(latestHandoffText)}catch{prompt('複製最新串接指令',latestHandoffText)}};
+window.addEventListener('popstate',renderClockRoute);
 /* Starry relay login: exactly https://clock.starry.phd/auth/done callback; fragment only. */
 const STAR='https://id.starry.phd',APPID='clock',REDIRECT='https://clock.starry.phd/auth/done';
 const WEB_SSO_RETURN='https://clock.starry.phd/'; // registered, fragment-free; never send tokens in this URL
@@ -314,6 +463,8 @@ function setMemberButtons(member){
  $('loginPasskey').classList.toggle('hidden',Boolean(member)||!webPasskeysSupported());
  const show=Boolean(member);
  $('passkeyPanel').classList.toggle('hidden',!show||!webPasskeysSupported()||member?.consent?.required||member?.status!=='active');
+ $('loginNav').classList.toggle('hidden',show);
+ $('routeLoginNav').classList.toggle('hidden',show||location.pathname==='/login');
  for(const id of ['editMember','linkGoogle','linkApple','logoutMember','logoutAllMember','deleteMember'])$(id).classList.toggle('hidden',!show||member?.status==='pending_deletion'||member?.consent?.required);
  $('consent').classList.toggle('hidden',!member?.consent?.required);
  // The current central API permanently deletes immediately; no undo period.
@@ -531,11 +682,12 @@ async function loadMemberWebUI(){
  }
  await syncCloudPresets();
  await reloadWebPasskeys();
- await loadOwnerPrices();
+ if(location.pathname==='/admin')await loadOwnerPrices();
 }
 function logoutWebLocal(){webAccess=null;webMember=null;cloudPresetIds=new Set();freePresetSlots=[];freeSyncReady=false;$('passkeyList').replaceChildren();sessionStorage.removeItem(refreshingKey);sessionStorage.removeItem(pendingKey);setMemberButtons(null);$('batteryPanel').classList.add('hidden');$('ownerPricing').classList.add('hidden');$('batteryBalance').textContent='';}
 function bytesHex(bytes){return Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('')}
 async function relayWeb(provider,operation='login'){
+ if(operation==='login'&&!sessionStorage.getItem(CLOCK_RETURN_ROUTE))sessionStorage.setItem(CLOCK_RETURN_ROUTE,location.pathname==='/login'?'/settings':location.pathname);
  $('accountError').textContent='';
  try{
   if(operation==='login'){
@@ -572,7 +724,7 @@ async function completeWebRelay(){
  }
  // Backward compatibility for a member already mid-redirect in the old client.
  const frag=location.hash.replace(/^#/,'');
- history.replaceState(null,'','/'); // remove sensitive token fragment before any network call
+ history.replaceState(null,'',sessionStorage.getItem(CLOCK_RETURN_ROUTE)||'/'); // remove sensitive token fragment before any network call
  const raw=sessionStorage.getItem(pendingKey);sessionStorage.removeItem(pendingKey);
  if(!raw){alertAccount('登入請求已失效，請重新操作');return}
  try{
@@ -688,6 +840,8 @@ async function startWebAuth(){
   }
   await completeWebRelay();
   await loadMemberWebUI();
+  const target=sessionStorage.getItem(CLOCK_RETURN_ROUTE);sessionStorage.removeItem(CLOCK_RETURN_ROUTE);
+  if(target&&target!=='/login'&&target!=='/auth/done')navigateClock(target,{replace:true});
   if(shouldShare&&await client.restore()){
    await client.shareWebSignIn({returnUrl:WEB_SSO_RETURN});
   }
@@ -703,7 +857,7 @@ async function startWebAuth(){
 }
 void startWebAuth().catch(()=>{});
 
-read();reset();renderPresets();setMemberButtons(null);summary();void showPublicPricing();void checkAppGate();setInterval(tick,100);drawMode();if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
+read();reset();renderPresets();setMemberButtons(null);summary();void showPublicPricing();void checkAppGate();setInterval(tick,100);drawMode();renderClockRoute();if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 })();
 </script>
 </body></html>

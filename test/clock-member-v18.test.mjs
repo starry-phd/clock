@@ -21,7 +21,7 @@ test('v18: official generated OpenAPI describes Starry avatar, initials, mutable
 test('v18: Expo and Web use exact fresh avatar URL, server initials, no independent avatar store',()=>{
  assert.match(native,/await loadMember\(\)/,'reload member data on account entry');
  assert.match(native,/centralAvatar\(me\?\.profile\?\.avatar_url\)/,'Expo must use signed avatar returned by Starry ID');
- assert.match(native,/me\.profile\.initials/,'Expo must use server-calculated initials');
+ assert.match(native,/block\.avatar\.initials/,'Expo uses SDK-provided, server-calculated initials');
  assert.match(native,/onError=\{\(\)=>setAvatarFailed\(true\)\}/,'Expo must fall back when avatar fails');
  assert.match(web,/await requireWebSdk\(\)\.me\(\)/,'Web refreshes member from central');
  assert.match(web,/member\.profile\?\.avatar_url/,'Web must use signed profile avatar');
@@ -50,7 +50,7 @@ test('v18: all platforms distinguish ordinary and quantum Battery pictograms',()
  for(const [name,src] of [['Expo',native],['Web',web]]){
   assert.match(src,/🔋 .*顆普通電池/,name+' ordinary balance');
   assert.match(src,/⚛️ .*顆量子電池/,name+' Quantum balance');
-  assert.match(src,/繁星電池艙 Starry Battery/);
+  assert.ok(src.includes('starrySettingsBlocks')||src.includes('sdkModuleSettings'),'platform uses official SDK battery block');
  }
  assert.match(core,/🔋/,'the timer screen must show the ordinary Battery icon');
  assert.match(web,/🔋 Clock 超級管理員/);
