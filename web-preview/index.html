@@ -31,7 +31,7 @@ body.fullscreen #app{max-width:none}body.theater header,body.theater .mode-toggl
 <div class="footer"><span id="summary">結束前 10 秒提醒 · 響鈴開啟 · 可離線使用</span><div id="notice" style="font-size:11px;margin-top:4px">開啟畫面時可準時提醒；鎖屏、背景分頁或系統省電可能延遲鈴聲</div></div>
 </main>
 <section id="clockRoutePage" class="clock-route hidden">
- <div class="clock-route-nav"><button id="routeHome" class="icon-btn">返回計時器</button><strong id="routeTitle"></strong></div>
+ <div class="clock-route-nav"><button id="routeHome" class="icon-btn">返回計時器</button><strong id="routeTitle"></strong><button id="routeLoginNav" class="icon-btn hidden">登入</button></div>
  <div id="routeSettings" class="hidden"><div id="sdkSettingsBlocks"></div><div class="clock-route-block"><button id="timerSettingsNav" class="icon-btn" style="width:100%">計時器設定</button></div></div>
  <div id="routeAdmin" class="hidden">
   <div class="clock-route-block" id="handoffCard"><strong>串接指令</strong><p id="handoffStatus"></p><p>更新時請 AI 只補差異，不要整份重做</p><button id="copyHandoff" class="icon-btn hidden">複製最新串接指令</button></div>
@@ -268,6 +268,7 @@ function renderClockRoute(){
  const home=path==='/'||path==='/auth/done'||path==='/preferences';
  $('app').classList.toggle('hidden',!home);
  $('clockRoutePage').classList.toggle('hidden',home);
+ $('routeLoginNav').classList.toggle('hidden',Boolean(webMember)||path==='/login');
  for(const id of ['routeSettings','routeAdmin','routeLogin','routeMissing'])$(id).classList.add('hidden');
  if(path==='/settings'){
   $('routeTitle').textContent='設定';$('routeSettings').classList.remove('hidden');
@@ -380,6 +381,7 @@ $('routeHome').onclick=()=>navigateClock('/');
 $('routeMissingHome').onclick=()=>navigateClock('/');
 $('timerSettingsNav').onclick=()=>navigateClock('/preferences');
 $('loginNav').onclick=()=>{sessionStorage.setItem(CLOCK_RETURN_ROUTE,location.pathname);navigateClock('/login')};
+$('routeLoginNav').onclick=()=>{sessionStorage.setItem(CLOCK_RETURN_ROUTE,location.pathname);navigateClock('/login')};
 $('routeLoginGoogle').onclick=()=>$('loginGoogle').click();
 $('routeLoginApple').onclick=()=>$('loginApple').click();
 $('routeLoginPasskey').onclick=()=>$('loginPasskey').click();
@@ -462,6 +464,7 @@ function setMemberButtons(member){
  const show=Boolean(member);
  $('passkeyPanel').classList.toggle('hidden',!show||!webPasskeysSupported()||member?.consent?.required||member?.status!=='active');
  $('loginNav').classList.toggle('hidden',show);
+ $('routeLoginNav').classList.toggle('hidden',show||location.pathname==='/login');
  for(const id of ['editMember','linkGoogle','linkApple','logoutMember','logoutAllMember','deleteMember'])$(id).classList.toggle('hidden',!show||member?.status==='pending_deletion'||member?.consent?.required);
  $('consent').classList.toggle('hidden',!member?.consent?.required);
  // The current central API permanently deletes immediately; no undo period.
